@@ -3,7 +3,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { useRouter } from 'expo-router';
-import { colors } from '../../../theme/colors.jsx';
+import { colors } from '../../theme/colors.jsx';
 import AppLogo from '../components/AppLogo';
 import FeatureCard from '../components/FeatureCard';
 import PrimaryButton from '../components/PrimaryButton';

@@ -1,5 +1,5 @@
 import { StyleSheet, Text, TouchableOpacity } from 'react-native';
-import { colors } from '../../../theme/colors.jsx';
+import { colors } from '../../theme/colors.jsx';
 
 export default function PrimaryButton({ title, onPress }) {
   return (

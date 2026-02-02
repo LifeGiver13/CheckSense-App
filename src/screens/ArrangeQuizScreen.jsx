@@ -12,9 +12,9 @@ import {
 
 import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useAuth } from "../../../contexts/AuthContext.jsx";
-import { colors } from "../../../theme/colors.jsx";
-import { API_BASE_URL } from "../../../theme/constants.jsx";
+import { useAuth } from "../../contexts/AuthContext.jsx";
+import { colors } from "../../theme/colors.jsx";
+import { API_BASE_URL } from "../../theme/constants.jsx";
 import Duration from "../components/Duration.jsx";
 import QuizType from "../components/QuizType.jsx";
 
@@ -124,7 +124,8 @@ export default function ArrangeQuiz() {
       {/* <View style={styles.topHeader}>
         <AppLogoPages />
       </View> */}
-        <View style={styles.arangeQuiz}>
+       
+        <View style={styles.arrangeQuiz}>
       <Text style={styles.title}>Arrange Your Quiz</Text>
 
         <Text style={styles.subtitle}>
@@ -261,22 +262,22 @@ const styles = StyleSheet.create({
     marginTop: 0,
     backgroundColor: colors.white,
   },
+  cont: {
+    flex: 1,
+  },
   title: {
-    fontSize: 30,
+    fontSize: 20,
     fontWeight: "bold",
-    color: colors.black,
+    color: colors.white,
     marginBottom: 16,
     textAlign: 'left',
   },
   subtitle: {
-    color: colors.mutedBlack,
-    fontSize: 16,
+    color: colors.mutedWhite,
+    fontSize: 12,
     textAlign: 'left',
     marginBottom: 30,
   },
-    arange:{
-    backgroundColor: colors.primaryDark
-    } ,
      label: {
     fontSize: 16,
     color: colors.black,
@@ -324,4 +325,10 @@ const styles = StyleSheet.create({
     gap: 20,
     flexDirection: 'row'
   },
+  arrangeQuiz: {
+    backgroundColor: colors.primaryDark,
+    alignItems:'left',
+    borderRadius: 20,
+    padding: 16
+  }
 });

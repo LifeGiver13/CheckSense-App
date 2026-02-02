@@ -1,5 +1,5 @@
 import { StyleSheet, Text, View } from 'react-native';
-import { colors } from '../../../theme/colors.jsx';
+import { colors } from '../../theme/colors.jsx';
 
 export default function Duration({ icon, title, description }) {
   return (

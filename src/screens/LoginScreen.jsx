@@ -11,8 +11,8 @@ import {
   TextInput,
   View
 } from 'react-native';
-import { useAuth } from '../../../contexts/AuthContext.jsx';
-import { colors } from '../../../theme/colors.jsx';
+import { useAuth } from '../../contexts/AuthContext.jsx';
+import { colors } from '../../theme/colors.jsx';
 
 export default function LoginScreen() {
   const { login } = useAuth(); // get login function from context
