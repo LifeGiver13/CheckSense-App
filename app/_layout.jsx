@@ -3,6 +3,7 @@ import { Drawer } from 'expo-router/drawer';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import 'react-native-gesture-handler';
 import { AuthProvider } from '../contexts/AuthContext';
+import { QuizGenerationProvider } from '../contexts/QuizgenerationContext.jsx';
 import AppLogoPages from '../src/components/AppLogoPages.jsx';
 import Username from '../src/components/Username.jsx';
 import { colors } from '../theme/colors.jsx';
@@ -10,6 +11,7 @@ import { colors } from '../theme/colors.jsx';
 export default function RootLayout() {
   return (
     <AuthProvider>
+      <QuizGenerationProvider>
       <Drawer
         screenOptions={({ navigation }) => ({
           headerShown: true,
@@ -48,8 +50,17 @@ export default function RootLayout() {
                   <Text style={styles.linkText}>Arrange Quiz</Text>
               </View>
               </TouchableOpacity>
-
-
+                {/* Quizzes */}
+              <TouchableOpacity
+              onPress={() => navigation.navigate('quizzes')}
+              style={styles.link}>
+                    <View style={styles.container}>
+                        <View style={styles.iconBox}>
+                            <Feather name='book-open' color={colors.black} size={24} />
+                          </View>
+                          <Text style={styles.linkText}>Quizzes</Text>
+                      </View>
+              </TouchableOpacity>
               {/* settings */}
                <TouchableOpacity
                 onPress={() => navigation.navigate('settings')}
@@ -82,11 +93,16 @@ export default function RootLayout() {
           name="arrange-quiz"
           options={{ title: 'Arrange Quiz' }}
         />
+         <Drawer.Screen
+          name="quizzes"
+          options={{ title: 'Quizzes' }}
+        />
         <Drawer.Screen
           name="settings"
           options={{ title: 'Settings' }}
         />
       </Drawer>
+      </QuizGenerationProvider>
     </AuthProvider>
   );
 }

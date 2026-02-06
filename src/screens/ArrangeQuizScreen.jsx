@@ -1,5 +1,5 @@
 import { Picker } from "@react-native-picker/picker";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -11,7 +11,7 @@ import {
 } from "react-native";
 
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext.jsx";
 import { colors } from "../../theme/colors.jsx";
 import { API_BASE_URL } from "../../theme/constants.jsx";
@@ -50,23 +50,33 @@ export default function ArrangeQuiz() {
   const [loadingSubjects, setLoadingSubjects] = useState(false);
   const [loadingTopics, setLoadingTopics] = useState(false);
 
+  const [quizDuration, setQuizDuration] = useState("");
+  const [quizType, setQuizType] = useState("");
+
+
   // Fetch subjects
-  useEffect(() => {
+useFocusEffect(
+  useCallback(() => {
     async function loadSubjects() {
+      if (!selectedClass) return;
+
       setLoadingSubjects(true);
       try {
-        const res = await fetch(`${API_BASE_URL}/subjects/filter?classLevel=${selectedClass}`);
+        const res = await fetch(
+          `${API_BASE_URL}/subjects/filter?classLevel=${selectedClass}`
+        );
         const data = await res.json();
         setSubjects(data.data || []);
-      } catch (err) {
+      } catch {
         Alert.alert("Failed to fetch subjects");
-        console.error(err);
       } finally {
         setLoadingSubjects(false);
       }
     }
+
     loadSubjects();
-  }, []);
+  }, [selectedClass])
+);
 
   // Fetch topics when class + subject change
   useEffect(() => {
@@ -104,20 +114,62 @@ export default function ArrangeQuiz() {
     );
   };
 
-  const handleContinue = () => {
-    if (!selectedClass || !selectedSubject || !selectedTopic) {
-      Alert.alert("Please select class, subject, and topic");
-      return;
-    }
+    const handleContinue = () => {
+      if (!selectedClass || !selectedSubject || !selectedTopic) {
+        Alert.alert("Please select class, subject, and topic");
+        return;
+      }
+      if (!quizDuration || !quizType) {
+        Alert.alert("Please select quiz duration and question type");
+        return;
+      }
 
-    router.push("QuizGenerating", {
-      class: selectedClass,
-      subject: selectedSubject,
-      topic: selectedTopic,
-      subTopics:
-        selectedSubtopics.length > 0 ? selectedSubtopics : subtopics,
-    });
-  };
+      // Prepare topics payload
+      const topicsPayload = [
+        {
+          name: selectedTopic,
+          description: "", // empty for now, can be filled if needed
+          subtopic: (selectedSubtopics.length > 0 ? selectedSubtopics : subtopics).map((st) => ({
+            name: st,
+            description: "",
+          })),
+        },
+      ];
+
+      router.push({
+        pathname: "/quiz-generating",
+        params: {
+          classLevel: selectedClass,
+          subject: selectedSubject,
+          topic: selectedTopic,
+          subTopics: JSON.stringify(topicsPayload),
+          duration: quizDuration,
+          quizType,
+        },
+      });
+    };
+
+    //To reset feilds after redirection
+    const resetForm = () => {
+      setSelectedClass(userDefaultClass || "Upper Sixth");
+
+      setSubjects([]);
+      setTopics([]);
+      setSubtopics([]);
+
+      setSelectedSubject("");
+      setSelectedTopic("");
+      setSelectedSubtopics([]);
+
+      setQuizDuration("");
+      setQuizType("");
+    };
+
+    useFocusEffect(
+      useCallback(() => {
+        resetForm();
+      }, [])
+    );
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -167,8 +219,9 @@ export default function ArrangeQuiz() {
           }}
           style={styles.picker}
         >
+            <Picker.Item label="Select subject..." value="" />
           {subjects.map((s) => (
-            <Picker.Item key={s.name} label={s.name} value={s.name} />
+            <Picker.Item  key={s.name} label={s.name} value={s.name} />
           ))}
         </Picker>
       )}
@@ -183,6 +236,7 @@ export default function ArrangeQuiz() {
           onValueChange={(val) => setSelectedTopic(val)}
           style={styles.picker}
         >
+          <Picker.Item label="Select topic..." value="" />
           {topics.map((t) => (
             <Picker.Item key={t.id} label={t.name} value={t.name} />
           ))}
@@ -212,39 +266,52 @@ export default function ArrangeQuiz() {
       <View>
         <Text style={styles.label}>⏱️ Quiz Duration</Text>
         <View style={styles.features}>
-          <Duration
-            icon={<Feather name='zap' size={28} color={colors.white} />}
-            title="Short"
-            description="7 questions • 5 - 10 min "
+         <Duration
+            icon={<Feather name="zap" size={28} color={colors.white} />}
+            title="Short"              
+            selected={quizDuration === "short"}
+            description="7 questions • 5 - 10 min"
+            onSelect={() => setQuizDuration("short")}
           />
 
           <Duration
-            icon={<Feather name='clock' size={28} color={colors.white} />}
-            title="Meduim"
-            description="15 questions • 15 - 20 min "
+            icon={<Feather name="clock" size={28} color={colors.white} />}
+            title="Medium"
+            description="15 questions • 15 - 20 min"
+            onSelect={() => setQuizDuration("medium")}
+            selected={quizDuration === "medium"}
           />
 
           <Duration
-            icon={<Feather name='book-open' size={28} color={colors.white} />}
+            icon={<Feather name="book-open" size={28} color={colors.white} />}
             title="Long"
-            description="20 questions • 20 - 40 min "
+            description="20 questions • 20 - 40 min"
+            onSelect={() => setQuizDuration("long")}
+            selected={quizDuration === "long"}
           />
+
           </View>
         </View>
         <View>
         <Text style={styles.label}>❓Question Type</Text>
         <View style={styles.features}>
           <QuizType
-            icon={<Feather name='check' size={28} color={colors.white} />}
+            icon={<Feather name="check" size={28} color={colors.white} />}
             title="Multiple Choice"
-            description="Choose from 4 possible answers "
+            description="Choose from 4 possible answers"
+            onSelect={() => setQuizType("mcq")}
+            selected={quizType === "mcq"}
+    
           />
 
           <QuizType
-            icon={<Feather name='activity' size={28} color={colors.white} />}
+            icon={<Feather name="activity" size={28} color={colors.white} />}
             title="Structural Questions"
             description="Type your answer"
+            onSelect={() => setQuizType("structural")}
+            selected={quizType === "saq"}
           />
+
           </View>
         </View>
 

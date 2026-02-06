@@ -4,17 +4,17 @@ import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
-    Image,
-    Modal,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    View,
+  ActivityIndicator,
+  Image,
+  Modal,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
 } from "react-native";
-import { useAuth } from "../../contexts/AuthContext"; // your AuthContext
+import { useAuth } from "../../contexts/AuthContext";
 import { colors } from "../../theme/colors";
 import { API_BASE_URL } from "../../theme/constants";
 
@@ -191,8 +191,8 @@ export default function AccountInformation() {
 
   const handleProfilePictureChange = async (uri) => {
     if (!user || !token) return;
-    setProfilePicture(uri); // just locally for now
-    // TODO: implement upload to API if needed
+    setProfilePicture(uri);
+
   };
 
   const renderCheckbox = (subject) => (

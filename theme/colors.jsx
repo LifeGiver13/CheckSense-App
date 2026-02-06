@@ -16,5 +16,6 @@ export const colors = {
   white: '#ffffff',
   mutedWhite: 'rgba(255,255,255,0.7)',
   black: '#000',
-  mutedBlack: 'rgba(66, 66, 66, 0.7)'
+  mutedBlack: 'rgba(66, 66, 66, 0.7)',
+  gray: '#ffffff28'
 };

@@ -6,7 +6,7 @@ import { colors } from '../../theme/colors.jsx';
 export default function Username({ color = colors.black, avatarSize = 50 }) {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
-  const [avatar, setAvatar] = useState(null); // URL or local path
+  const [avatar, setAvatar] = useState(null);
 
   useEffect(() => {
     const loadUser = async () => {
@@ -16,7 +16,7 @@ export default function Username({ color = colors.black, avatarSize = 50 }) {
           const parsed = JSON.parse(userData);
           setUsername(parsed.username || '');
           setEmail(parsed.email || '');
-          setAvatar(parsed?.profile?.profilePic || null); // if you stored avatar URL/path
+          setAvatar(parsed?.profile?.profilePic || null);
         }
       } catch (error) {
         console.log('Failed to load user', error);
@@ -44,7 +44,7 @@ export default function Username({ color = colors.black, avatarSize = 50 }) {
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row', // row makes image left, text right
+    flexDirection: 'row',
     alignItems: 'center',
     gap: 15,
     marginLeft: 10
@@ -53,7 +53,7 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
   },
   avatar: {
-    backgroundColor: colors.secondary, // fallback background if image fails
+    backgroundColor: colors.secondary,
   },
   text: {
     fontSize: 22,
