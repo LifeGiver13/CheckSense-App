@@ -20,7 +20,7 @@ export default function BrowseSubjects() {
     const [classLevel, setClassLevel] = useState("");
     const [userSubjects, setUserSubjects] = useState([]);
     const [selectedSubject, setSelectedSubject] = useState("");
-    const [topics, setTopics] = useState([]);
+    const [subjectsWithTopics, setSubjectsWithTopics] = useState([]);
     const [loading, setLoading] = useState(true);
 
     // Load user profile
@@ -32,59 +32,69 @@ export default function BrowseSubjects() {
             const user = JSON.parse(raw);
             setClassLevel(user?.profile?.defaultClass || "");
             setUserSubjects(user?.profile?.subjects || []);
+
+            // Default selectedSubject to first user subject
+            if (user?.profile?.subjects?.length) {
+                setSelectedSubject(user.profile.subjects[0]);
+            }
         };
 
         loadUser();
     }, []);
 
-    // Fetch topics
+    // Fetch subjects and their topics
     useEffect(() => {
         if (!classLevel) return;
 
-        const fetchTopics = async () => {
+        const fetchSubjectsAndTopics = async () => {
             setLoading(true);
             try {
-                const where = {
-                    classLevel,
-                    ...(selectedSubject && { subject: selectedSubject }),
-                };
+                // Fetch subjects
+                const subjectWhere = { classLevel };
+                if (selectedSubject) subjectWhere.name = selectedSubject;
 
-                const params = new URLSearchParams({
-                    where: JSON.stringify(where),
+                const subjectParams = new URLSearchParams({
+                    where: JSON.stringify(subjectWhere),
                 });
 
-                const res = await fetch(`${API_BASE_URL}/v2/topics?${params.toString()}`);
+                const resSubjects = await fetch(`${API_BASE_URL}/v2/subjects?${subjectParams.toString()}`);
+                const jsonSubjects = await resSubjects.json();
+                const subjects = jsonSubjects.data || [];
 
+                // Fetch topics for each subject
+                const subjectsWithCounts = await Promise.all(
+                    subjects.map(async (subject) => {
+                        const topicWhere = {
+                            classLevel,
+                            subject: subject.name,
+                        };
+                        const topicParams = new URLSearchParams({
+                            where: JSON.stringify(topicWhere),
+                        });
 
-                const json = await res.json();
+                        const resTopics = await fetch(`${API_BASE_URL}/v2/topics?${topicParams.toString()}`);
+                        const jsonTopics = await resTopics.json();
+                        const validTopics = (jsonTopics.data || []).filter(
+                            (topic) => Array.isArray(topic.subtopics) && topic.subtopics.length > 0
+                        );
 
-                const validTopics = (json.data || []).filter(
-                    (topic) =>
-                        Array.isArray(topic.subtopics) && topic.subtopics.length > 0
+                        return {
+                            ...subject,
+                            topicCount: validTopics.length,
+                        };
+                    })
                 );
 
-                setTopics(validTopics);
-
+                setSubjectsWithTopics(subjectsWithCounts);
             } catch (e) {
-                console.error("Failed to load topics", e);
+                console.error("Failed to load subjects/topics", e);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchTopics();
+        fetchSubjectsAndTopics();
     }, [classLevel, selectedSubject]);
-
-    // Group topics by subject
-    const groupedSubjects = topics.reduce((acc, topic) => {
-        if (!topic.subject) return acc;
-
-        if (!acc[topic.subject]) acc[topic.subject] = [];
-        acc[topic.subject].push(topic);
-
-        return acc;
-    }, {});
-
 
     return (
         <ScrollView contentContainerStyle={styles.container}>
@@ -107,7 +117,7 @@ export default function BrowseSubjects() {
                 <Picker.Item label="Upper Sixth" value="Upper Sixth" />
             </Picker>
 
-            {/* Subject Picker (user subjects only) */}
+            {/* Subject Picker */}
             <Text style={styles.label}>📚 Subject</Text>
             <Picker
                 selectedValue={selectedSubject}
@@ -124,33 +134,31 @@ export default function BrowseSubjects() {
             {loading ? (
                 <ActivityIndicator size="large" color={colors.secondary} />
             ) : (
-                Object.entries(groupedSubjects).map(([subject, subjectTopics]) => (
-                    <Pressable
-                        key={subject}
-                        style={styles.card}
-                        onPress={() =>
-                            router.push({
-                                pathname: "/subject-topics",
-                                params: {
-                                    subject,
-                                    classLevel,
-                                },
-                            })
-                        }
-                    >
-                        <View style={styles.cardHeader}>
-                            <Feather name="book" size={22} color={colors.secondary} />
-                            <Text style={styles.cardTitle}>{subject}</Text>
-                        </View>
+                subjectsWithTopics
+                    .filter((s) => s.topicCount > 0)
+                    .map((subject) => (
+                        <Pressable
+                            key={subject.id}
+                            style={styles.card}
+                            onPress={() =>
+                                router.push({
+                                    pathname: "/subject-topics",
+                                    params: {
+                                        subject: subject.name,
+                                        classLevel,
+                                    },
+                                })
+                            }
+                        >
+                            <View style={styles.cardHeader}>
+                                <Feather name="book" size={22} color={colors.secondary} />
+                                <Text style={styles.cardTitle}>{subject.name}</Text>
+                            </View>
 
-                        <Text style={styles.meta}>
-                            Class: {classLevel}
-                        </Text>
-                        <Text style={styles.meta}>
-                            Topics: {subjectTopics.length}
-                        </Text>
-                    </Pressable>
-                ))
+                            <Text style={styles.meta}>Class: {classLevel}</Text>
+                            <Text style={styles.meta}>Topics: {subject.topicCount}</Text>
+                        </Pressable>
+                    ))
             )}
         </ScrollView>
     );
