@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
 import { colors } from "../../theme/colors";
 import { API_BASE_URL } from "../../theme/constants";
@@ -98,6 +98,8 @@ export default function QuizScreen() {
 
 
     const currentQ = quiz?.questions?.[currentQuestion];
+    const isSAQ = quiz?.quizType === "saq" || quiz?.questionType === "saq";
+
 
     const handleAnswer = (answer) => {
         setAnswers({ ...answers, [currentQuestion]: answer });
@@ -231,26 +233,25 @@ export default function QuizScreen() {
             <View style={styles.questionContainer}>
                 <Text style={{ fontSize: 18, marginBottom: 12 }}>{currentQ.question}</Text>
 
-                {/* MCQ options */}
-                {currentQ.options?.map((opt, index) => {
+                {/* MCQ */}
+                {!isSAQ && currentQ.options?.map((opt, index) => {
                     const isSelected = answers[currentQuestion] === opt;
                     const submitted = feedback[currentQuestion]?.submitted;
                     const isCorrectAnswer = opt === currentQ.answer;
 
-                    let bgColor = colors.white; // default
+                    let bgColor = colors.white;
                     if (!isExamMode && submitted) {
                         if (isSelected && isCorrectAnswer) bgColor = "#d4edda";
                         else if (isSelected && !isCorrectAnswer) bgColor = "#f8d7da";
                         else if (!isSelected && isCorrectAnswer) bgColor = "#d4edda";
-                    }
-                    else if (isSelected) {
-                        bgColor = colors.secondary; // user selected but not submitted
+                    } else if (isSelected) {
+                        bgColor = colors.secondary;
                     }
 
                     return (
                         <Pressable
                             key={index}
-                            onPress={() => !submitted && handleAnswer(opt)} // disable changing after submit
+                            onPress={() => !submitted && handleAnswer(opt)}
                             style={{
                                 padding: 12,
                                 borderWidth: 1,
@@ -264,6 +265,33 @@ export default function QuizScreen() {
                         </Pressable>
                     );
                 })}
+
+                {/* SAQ (Short Answer) */}
+                {isSAQ && (
+                    <View style={{ marginTop: 12 }}>
+                        <Text style={{ marginBottom: 6, fontWeight: "500" }}>
+                            Type your answer:
+                        </Text>
+
+                        <TextInput
+                            value={answers[currentQuestion] || ""}
+                            onChangeText={(text) => handleAnswer(text)}
+                            editable={!feedback[currentQuestion]?.submitted}
+                            multiline
+                            numberOfLines={5}
+                            placeholder="Write your answer here..."
+                            style={{
+                                borderWidth: 1,
+                                borderColor: "#ccc",
+                                borderRadius: 10,
+                                padding: 12,
+                                minHeight: 120,
+                                textAlignVertical: "top",
+                                backgroundColor: colors.white,
+                            }}
+                        />
+                    </View>
+                )}
 
                 {/* feedback */}
                 {!isExamMode && feedback[currentQuestion]?.submitted && (

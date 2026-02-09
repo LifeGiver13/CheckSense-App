@@ -308,7 +308,7 @@ useFocusEffect(
             icon={<Feather name="activity" size={28} color={colors.white} />}
             title="Structural Questions"
             description="Type your answer"
-            onSelect={() => setQuizType("structural")}
+            onSelect={() => setQuizType("saq")}
             selected={quizType === "saq"}
           />
 

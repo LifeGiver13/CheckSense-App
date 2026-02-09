@@ -97,6 +97,15 @@ export default function Quizzes() {
         setQuizAttempts(prev => prev.filter(q => q.id !== id));
     };
 
+    const currentPage = Math.floor(pagination.offset / pagination.limit) + 1;
+    const totalPages = Math.ceil(pagination.total / pagination.limit);
+
+    const startItem = pagination.offset + 1;
+    const endItem = Math.min(
+        pagination.offset + pagination.limit,
+        pagination.total
+    );
+
 
     if (loading || authLoading) {
         return (
@@ -112,9 +121,9 @@ export default function Quizzes() {
 
             {/* Tabs */}
             <View style={styles.tabs}>
-                <TabButton label={"Pending "+ pending.length} active={tab === "pending"} onPress={() => setTab("pending")} />
-                <TabButton label={"Challenges "+ challenges.length} active={tab === "challenges"} onPress={() => setTab("challenges")} />
-                <TabButton label={"Completed "+ completed.length} active={tab === "completed"} onPress={() => setTab("completed")} />
+                <TabButton label={"Pending " + pending.length} active={tab === "pending"} onPress={() => setTab("pending")} />
+                <TabButton label={"Challenges " + challenges.length} active={tab === "challenges"} onPress={() => setTab("challenges")} />
+                <TabButton label={"Completed " + completed.length} active={tab === "completed"} onPress={() => setTab("completed")} />
             </View>
 
             {/* List */}
@@ -126,7 +135,7 @@ export default function Quizzes() {
                     <Text style={styles.empty}>No quizzes here</Text>
                 }
                 renderItem={({ item }) => {
-                   
+
                     const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
 
                     return (
@@ -139,7 +148,7 @@ export default function Quizzes() {
 
                             {/* Second line: topic */}
                             <Text style={styles.secondLine}>
-                                {item.topic[0]?.name || ""}
+                                Topic: {item.topic[0]?.name || ""}
                             </Text>
 
                             {/* Third line: created and updated */}
@@ -207,9 +216,15 @@ export default function Quizzes() {
                         <Text>{"< Previous"}</Text>
                     </TouchableOpacity>
 
-                    <Text style={styles.subtitle}>Showing {pagination.offset + 1}-{pagination.offset + 10} of {pagination.total} quizzes</Text>
+                    <View style={{ alignItems: "center" }}>
+                        <Text style={styles.subtitle}>
+                            Showing {startItem}-{endItem} of {pagination.total} quizzes
+                        </Text>
 
-                    <Text style={styles.subtitle}>Page {(pagination.offset / 10).toFixed(0) + 1} of {(pagination.total / 10).toFixed(0)}</Text>
+                        <Text style={styles.subtitle}>
+                            Page {currentPage} of {totalPages}
+                        </Text>
+                    </View>
                     <TouchableOpacity
                         disabled={pagination.offset + PAGE_SIZE >= pagination.total}
                         onPress={() =>
@@ -308,6 +323,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         justifyContent: "center",
         gap: 6,
+        borderColor: colors.black,
+        borderWidth: 1
     },
     buttonTextContinue: {
         color: colors.white,
