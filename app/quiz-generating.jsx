@@ -106,7 +106,7 @@ export default function QuizGenerating() {
         subject: { name: subject, classLevel },
         topics: JSON.parse(subTopics),
         totalQuestions,
-        meta: { difficulty: duration, userId },
+        meta: { difficulty: 'easy', userId },
         quizType,
       };
 

@@ -10,6 +10,7 @@ import {
   View,
 } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
+import QuizAction from "../../src/components/QuizAction";
 import { colors } from "../../theme/colors";
 import { API_BASE_URL } from "../../theme/constants";
 
@@ -102,12 +103,13 @@ export default function QuizResults() {
       {quiz.questions?.map((q, index) => {
         const userAnswer = attempt.answers?.[index]?.answer || "No answer";
         const isCorrect =
-          userAnswer.trim().toLowerCase() === q.answer.trim().toLowerCase();
+          String(userAnswer).trim().toLowerCase() ===
+          String(q.answer).trim().toLowerCase();
 
         return (
           <View
             key={index}
-            style={[styles.questionCard, { backgroundColor: isCorrect ? "#e6fffa" : "#fdecea" , borderLeftColor: isCorrect ? "lemon" : "red", borderLeftWidth: 2}]}
+            style={[styles.questionCard, { backgroundColor: isCorrect ? "#e6fffa" : "#fdecea", borderLeftColor: isCorrect ? "#84cc16" : "red", borderLeftWidth: 2 }]}
           >
             <Text style={styles.question}>
               Q{index + 1}. {q.question}
@@ -136,19 +138,41 @@ export default function QuizResults() {
       })}
 
       {/* Actions */}
+
+
+
+<View style={styles.actions}>
+
       <Pressable
-        onPress={() => router.replace("/arrange-quiz")}
-        style={styles.actionBtn}
+        onPress={() => router.push(`/choose-quiz-type/${attempt.quizId}`)}
+        style={styles.actionBtn2}
       >
-        <Text style={styles.actionBtnText}>Take Another Quiz</Text>
+        <QuizAction
+          icon={<Feather name='rotate-ccw' size={28} color={colors.white} />}
+          title="Practice makes Perfect"
+          description="Revise the topic and try again to build your confidence before moving on. (Recomended)"
+        />
       </Pressable>
 
       <Pressable
-        onPress={() => router.replace("/arrange-quiz")}
+        onPress={() => router.push({
+          pathname: "/subject-topics",
+          params: {
+            subject: quiz.subject,
+            classLevel: quiz.classLevel,
+          },
+        })
+        }
         style={styles.actionBtn2}
       >
-        <Text style={{ textAlign: "center", opacity: 0.6 }}>Back to Home</Text>
+        {/* <Text style={{ textAlign: "center", opacity: 0.6 }}>Back to Home</Text> */}
+        <QuizAction
+          icon={<Feather name='compass' size={28} color={colors.white} />}
+          title="Explore Other Topics"
+          description="Discover more topics in Geography to broaden your knowledge."
+        />
       </Pressable>
+      </View>
     </ScrollView>
   );
 }
@@ -165,6 +189,7 @@ function Stat({ label, value }) {
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: colors.white },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
+  actions:{display:'flex', flexDirection:'column', height: '5.5%',},
   header: { alignItems: "center", marginBottom: 20 },
   title: { fontSize: 24, fontWeight: "bold", marginTop: 8 },
   subtitle: { opacity: 0.6 },
@@ -172,7 +197,7 @@ const styles = StyleSheet.create({
   reviewTitle: { fontSize: 20, fontWeight: "bold", marginBottom: 12 },
   questionCard: { padding: 12, borderRadius: 10, marginBottom: 10 },
   question: { fontWeight: "bold" },
-  actionBtn: { padding: 14, backgroundColor: colors.primaryDark, borderRadius: 10, marginTop: 16 },
+  // actionBtn: { padding: 14, backgroundColor: colors.primaryDark, borderRadius: 10, marginTop: 16 },
   actionBtnText: { color: "#fff", textAlign: "center" },
-    actionBtn2: { padding: 14, backgroundColor: colors.white, borderRadius: 10, marginTop: 16, borderWidth: 1, borderColor: colors.mutedBlack },
+  actionBtn2: {backgroundColor: colors.secondary, borderRadius: 10, marginTop: 16 },
 });

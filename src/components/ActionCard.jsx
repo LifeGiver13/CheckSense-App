@@ -5,7 +5,7 @@ export default function ActionCard({
   icon,
   title,
   description,
-  buttons = [], // optional
+  buttons = [], 
 }) {
   return (
     <View style={styles.card}>
