@@ -68,7 +68,39 @@ export default function QuizResults() {
   }
 
   const totalQuestions = attempt.totalQuestions;
-  const correctAnswers = attempt.correctAnswers
+  const correctAnswers = attempt.correctAnswers;
+  const passed = Number(attempt.score) >= 50;
+  const difficulty = quiz?.meta?.difficulty || "easy";
+  const quizType = quiz?.quizType || "mcq";
+
+  const getNextConfig = () => {
+    if (!passed) return null;
+
+    if (difficulty === "easy") {
+      return { difficulty: "medium", quizType: "mcq", duration: "medium" };
+    }
+
+    if (difficulty === "medium") {
+      return { difficulty: "hard", quizType: "mcq", duration: "long" };
+    }
+
+    if (difficulty === "hard" && quizType === "mcq") {
+      return { difficulty: "easy", quizType: "saq", duration: "short" };
+    }
+
+    if (difficulty === "easy" && quizType === "saq") {
+      return { difficulty: "medium", quizType: "saq", duration: "medium" };
+
+    } if (difficulty === "medium" && quizType === "saq") {
+      return { difficulty: "hard", quizType: "saq", duration: "long" };
+    }
+
+    return null;
+  };
+
+  const nextConfig = getNextConfig();
+
+
 
   const formatTime = (sec) => {
     const m = Math.floor(sec / 60);
@@ -141,38 +173,79 @@ export default function QuizResults() {
 
 
 
-<View style={styles.actions}>
+      <View style={styles.actions}>
 
-      <Pressable
-        onPress={() => router.push(`/choose-quiz-type/${attempt.quizId}`)}
-        style={styles.actionBtn2}
-      >
-        <QuizAction
-          icon={<Feather name='rotate-ccw' size={28} color={colors.white} />}
-          title="Practice makes Perfect"
-          description="Revise the topic and try again to build your confidence before moving on. (Recomended)"
-        />
-      </Pressable>
+        {!passed && (
+          <Pressable
+            onPress={() => router.push(`/choose-quiz-type/${attempt.quizId}`)}
+            style={styles.actionBtn2}
+          >
+            <QuizAction
+              icon={<Feather name='rotate-ccw' size={28} color={colors.white} />}
+              title="Practice makes Perfect"
+              description="Revise the topic and try again to build your confidence."
+            />
+          </Pressable>
+        )}
 
-      <Pressable
-        onPress={() => router.push({
-          pathname: "/subject-topics",
-          params: {
-            subject: quiz.subject,
-            classLevel: quiz.classLevel,
-          },
-        })
-        }
-        style={styles.actionBtn2}
-      >
-        {/* <Text style={{ textAlign: "center", opacity: 0.6 }}>Back to Home</Text> */}
-        <QuizAction
-          icon={<Feather name='compass' size={28} color={colors.white} />}
-          title="Explore Other Topics"
-          description="Discover more topics in Geography to broaden your knowledge."
-        />
-      </Pressable>
+        {passed && nextConfig && (
+          <Pressable
+            onPress={() =>
+              router.push({
+                pathname: "/quiz-generating",
+                params: {
+                  subject: quiz.subject,
+                  topic: quiz.topics?.[0]?.name,
+                  subTopics: JSON.stringify(quiz.topics || []),
+                  classLevel: quiz.classLevel,
+                  quizType: nextConfig.quizType,
+                  difficulty: nextConfig.difficulty,
+                  duration: nextConfig.duration
+
+                },
+              })
+            }
+            style={styles.actionBtn2}
+          >
+            <QuizAction
+              icon={<Feather name="arrow-up-circle" size={28} color={colors.white} />}
+              title="Continue Practicing"
+              description={`Level up to ${nextConfig.difficulty.toUpperCase()}!`}
+            />
+          </Pressable>
+        )}
+        {passed && !nextConfig && (
+          <View style={{ marginTop: 16 }}>
+            <QuizAction
+              icon={<Feather name="check-circle" size={28} color={colors.white} />}
+              title="Mastery Achieved 🎉"
+              description="You've completed all levels for this topic!"
+            />
+          </View>
+        )}
+
+
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: "/subject-topics",
+              params: {
+                subject: quiz.subject,
+                classLevel: quiz.classLevel,
+              },
+            })
+          }
+          style={styles.actionBtn2}
+        >
+          <QuizAction
+            icon={<Feather name='compass' size={28} color={colors.white} />}
+            title="Explore Other Topics"
+            description="Discover more topics."
+          />
+        </Pressable>
+
       </View>
+
     </ScrollView>
   );
 }
@@ -189,7 +262,7 @@ function Stat({ label, value }) {
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: colors.white },
   center: { flex: 1, justifyContent: "center", alignItems: "center" },
-  actions:{display:'flex', flexDirection:'column', height: '5.5%',},
+  actions: { display: 'flex', flexDirection: 'column', height: '5.5%', },
   header: { alignItems: "center", marginBottom: 20 },
   title: { fontSize: 24, fontWeight: "bold", marginTop: 8 },
   subtitle: { opacity: 0.6 },
@@ -199,5 +272,5 @@ const styles = StyleSheet.create({
   question: { fontWeight: "bold" },
   // actionBtn: { padding: 14, backgroundColor: colors.primaryDark, borderRadius: 10, marginTop: 16 },
   actionBtnText: { color: "#fff", textAlign: "center" },
-  actionBtn2: {backgroundColor: colors.secondary, borderRadius: 10, marginTop: 16 },
+  actionBtn2: { backgroundColor: colors.secondary, borderRadius: 10, marginTop: 16 },
 });

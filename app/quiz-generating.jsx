@@ -27,6 +27,7 @@ export default function QuizGenerating() {
     duration = "short",
     quizType = "mcq",
     classLevel,
+    difficulty = 'easy'
   } = params;
 
   const [progress, setProgress] = useState(0);
@@ -39,6 +40,7 @@ export default function QuizGenerating() {
 
   const [quizCreated, setQuizCreated] = useState(false);
 
+  
   //   for reset
     const resetState = () => {
     setProgress(0);
@@ -106,7 +108,7 @@ export default function QuizGenerating() {
         subject: { name: subject, classLevel },
         topics: JSON.parse(subTopics),
         totalQuestions,
-        meta: { difficulty: 'easy', userId },
+        meta: { difficulty, userId },
         quizType,
       };
 
