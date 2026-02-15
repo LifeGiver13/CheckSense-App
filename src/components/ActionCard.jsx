@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   titleCont: {
     display: 'flex',
     flexDirection: 'row',
-    alignItems: 'left',
+    alignItems: 'flex-start',
     justifyContent: 'flex-start'
   }
   ,

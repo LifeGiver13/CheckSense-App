@@ -1,21 +1,44 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
 import { colors } from "../../theme/colors";
 import { API_BASE_URL } from "../../theme/constants";
 
+const getParamValue = (value) => (Array.isArray(value) ? value[0] : value);
+
+const normalizeSubject = (subjectValue) => {
+  if (!subjectValue) return "";
+  if (typeof subjectValue === "string") return subjectValue;
+  if (typeof subjectValue === "object") return String(subjectValue.name || "");
+  return String(subjectValue);
+};
+
+const safeParseJSON = (value, fallback = null) => {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return fallback;
+  }
+};
+
+const normalizeQuizType = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return normalized === "saq" ? "saq" : "mcq";
+};
+
 export default function ChooseQuizType() {
-  const { id: quizId } = useLocalSearchParams();
+  const params = useLocalSearchParams();
+  const quizId = getParamValue(params.id);
   const router = useRouter();
   const { token, user } = useAuth();
 
@@ -25,60 +48,126 @@ export default function ChooseQuizType() {
   const [starting, setStarting] = useState(false);
 
   useEffect(() => {
-    async function fetchQuiz() {
-      if (!quizId || !token) {
-        setLoading(false);
-        return;
-      }
+    if (!quizId || !token) {
+      setLoading(false);
+      return;
+    }
 
+    const controller = new AbortController();
+    let isMounted = true;
+
+    async function fetchQuiz() {
       try {
-        const res = await fetch(`${API_BASE_URL}/v2/quiz/${quizId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `${API_BASE_URL}/v2/quiz/${quizId}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+            signal: controller.signal,
+          }
+        );
 
         if (!res.ok) throw new Error("Fetch failed");
 
         const result = await res.json();
-        setQuizData(result.data);
+
+        if (isMounted) {
+          setQuizData(result?.data || result);
+        }
       } catch (err) {
-        Alert.alert("Error", "Failed to load quiz");
+        if (err.name !== "AbortError") {
+          Alert.alert("Error", "Failed to load quiz");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     }
 
     fetchQuiz();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, [quizId, token]);
 
+
+  const normalizedQuizType = normalizeQuizType(
+    quizData?.quizType || quizData?.quiztype || quizData?.type || "mcq"
+  );
+
+  const summary = useMemo(() => {
+    const topics = Array.isArray(quizData?.topics) ? quizData.topics : [];
+    return {
+      subject: normalizeSubject(quizData?.subject) || "Unknown Subject",
+      classLevel: String(quizData?.classLevel || quizData?.subject?.classLevel || "Unknown Class"),
+      topic: String(topics[0]?.name || "General"),
+      quizType: normalizedQuizType,
+    };
+  }, [normalizedQuizType, quizData]);
+
   const handleStartQuiz = async () => {
+    if (starting) return;
+
+    const userId = user?.uid || user?.id;
+
+    if (!token || !quizId || !quizData || !userId) {
+      Alert.alert("Error", "Missing required quiz data. Please try again.");
+      return;
+    }
+
     setStarting(true);
 
     try {
+      const requestPayload = {
+        quizId: String(quizId),
+        userId: String(userId),
+        classLevel: summary.classLevel,
+        subject: summary.subject,
+        topic: [{ name: summary.topic }],
+        quizMode: selectedMode === "exam" ? "exam" : "practice",
+        quizType: normalizedQuizType,
+      };
+
+      console.log("quiz-attempt request payload:", requestPayload);
+
       const res = await fetch(`${API_BASE_URL}/v2/quiz-attempt`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          quizId,
-          userId: user.uid,
-          classLevel: quizData.classLevel,
-          subject: quizData.subject,
-          topic: quizData.topics,
-          quizMode: selectedMode,
-          quizType: quizData.type === "mcq" ? "mcq" : "saq",
-        }),
+        body: JSON.stringify(requestPayload),
       });
 
-      if (!res.ok) throw new Error("Attempt failed");
+      const rawResponse = await res.text();
+      const result = safeParseJSON(rawResponse, {});
 
-      const result = await res.json();
-      const attemptId = result.data?.id || result.id;
+      console.log("quiz-attempt response status:", res.status);
+      console.log("quiz-attempt response body:", result);
 
-      router.push(`/quiz/${attemptId}`);
+      if (!res.ok) {
+        throw new Error(
+          result?.message ||
+            result?.error ||
+            `Attempt failed (${res.status})`
+        );
+      }
+
+      const attemptId =
+        result?.data?.id ||
+        result?.data?._id ||
+        result?.data?.attemptId ||
+        result?.id ||
+        result?._id;
+
+      if (!attemptId) throw new Error("Attempt ID missing from response");
+
+      router.push({
+        pathname: "/quiz/[attemptId]",
+        params: { attemptId: String(attemptId) },
+      });
     } catch (err) {
-      Alert.alert("Error", "Failed to start quiz");
+      Alert.alert("Error", err?.message || "Failed to start quiz");
     } finally {
       setStarting(false);
     }
@@ -104,38 +193,29 @@ export default function ChooseQuizType() {
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Choose Quiz Mode</Text>
 
-      {/* Summary */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Quiz Settings</Text>
 
-        {/* <View>
-        <Text>Subject</Text>
-        <Text>{quizData.subject}</Text>
-        </View> */}
         <View style={styles.textholder}>
-        <Text style={styles.subtitle}>ClassLevel</Text>
-        <Text>{quizData.classLevel}</Text>
+          <Text style={styles.subtitle}>Class Level</Text>
+          <Text>{summary.classLevel}</Text>
         </View>
+
         <View style={styles.textholder}>
-        <Text style={styles.subtitle}>Subject & Topic</Text>
-        <Text>{quizData.subject} - {quizData.topics[0]?.name} </Text>
+          <Text style={styles.subtitle}>Subject and Topic</Text>
+          <Text>
+            {summary.subject} - {summary.topic}
+          </Text>
         </View>
+
         <View style={styles.textholder}>
-        <Text style={styles.subtitle}>Question Type</Text>
-        <Text>
-          {quizData.quiztype === "mcq"
-            ? "Multiple Choice"
-            : "Structural Questions"}
-        </Text>
+          <Text style={styles.subtitle}>Question Type</Text>
+          <Text>{summary.quizType === "mcq" ? "Multiple Choice" : "Structural Questions"}</Text>
         </View>
       </View>
 
-      {/* Mode selection */}
       <Pressable
-        style={[
-          styles.modeCard,
-          selectedMode === "practice" && styles.active,
-        ]}
+        style={[styles.modeCard, selectedMode === "practice" && styles.active]}
         onPress={() => setSelectedMode("practice")}
       >
         <Feather name="book" size={24} />
@@ -144,10 +224,7 @@ export default function ChooseQuizType() {
       </Pressable>
 
       <Pressable
-        style={[
-          styles.modeCard,
-          selectedMode === "exam" && styles.active,
-        ]}
+        style={[styles.modeCard, selectedMode === "exam" && styles.active]}
         onPress={() => setSelectedMode("exam")}
       >
         <Feather name="award" size={24} />
@@ -155,20 +232,11 @@ export default function ChooseQuizType() {
         <Text>Timed, no hints</Text>
       </Pressable>
 
-      {/* Start */}
-      <Pressable
-        style={styles.startBtn}
-        onPress={handleStartQuiz}
-        disabled={starting}
-      >
-        {starting ? (
-          <ActivityIndicator color="#fff" />
-        ) : (
-          <Text style={styles.startText}>Start Quiz</Text>
-        )}
+      <Pressable style={styles.startBtn} onPress={handleStartQuiz} disabled={starting}>
+        {starting ? <ActivityIndicator color="#fff" /> : <Text style={styles.startText}>Start Quiz</Text>}
       </Pressable>
 
-      <Pressable onPress={() => router.push('/arrange-quiz')}>
+      <Pressable onPress={() => router.push("/arrange-quiz")}>
         <Text style={styles.back}>Change Settings</Text>
       </Pressable>
     </ScrollView>
@@ -184,7 +252,7 @@ const styles = StyleSheet.create({
   container: {
     padding: 16,
     backgroundColor: colors.white,
-    width: '100%'
+    width: "100%",
   },
   title: {
     fontSize: 22,
@@ -197,13 +265,13 @@ const styles = StyleSheet.create({
     marginBottom: 20,
     borderWidth: 1,
     color: colors.mutedWhite,
-    display: 'flex',
-    flexDirection: 'column'
+    display: "flex",
+    flexDirection: "column",
   },
   cardTitle: {
     fontWeight: "bold",
     marginBottom: 6,
-    fontSize: 15
+    fontSize: 15,
   },
   modeCard: {
     padding: 16,
@@ -213,7 +281,7 @@ const styles = StyleSheet.create({
   },
   active: {
     borderColor: colors.primaryDark,
-    backgroundColor: colors.gray
+    backgroundColor: colors.gray,
   },
   modeTitle: {
     fontWeight: "bold",
@@ -235,12 +303,12 @@ const styles = StyleSheet.create({
     marginTop: 16,
     color: colors.secondary,
   },
-  textholder:{
-    textAlign: 'left',
-    marginBottom:5,
+  textholder: {
+    textAlign: "left",
+    marginBottom: 5,
   },
-  subtitle:{
+  subtitle: {
     color: colors.mutedBlack,
-    fontSize: 11
-  }
+    fontSize: 11,
+  },
 });

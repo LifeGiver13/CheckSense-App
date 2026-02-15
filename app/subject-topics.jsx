@@ -1,88 +1,120 @@
-import { Picker } from "@react-native-picker/picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 
 import { colors } from "../theme/colors.jsx";
 import { API_BASE_URL } from "../theme/constants.jsx";
 
 const DURATIONS = [
-  { label: "Short (7 questions • 5-10 min)", value: "short" },
-  { label: "Medium (15 questions • 15-20 min)", value: "medium" },
-  { label: "Long (20 questions • 20-40 min)", value: "long" },
+  { label: "Short", value: "short" },
+  { label: "Medium", value: "medium" },
+  { label: "Long", value: "long" },
 ];
+
+const getParamValue = (value) => (Array.isArray(value) ? value[0] : value);
+
+const sanitizeTopicList = (items) => {
+  if (!Array.isArray(items)) return [];
+
+  return items
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const subtopics = Array.isArray(item.subtopics) ? item.subtopics.filter(Boolean) : [];
+
+      if (!item.name || subtopics.length === 0) return null;
+
+      return {
+        id: item.id || item.name,
+        name: String(item.name),
+        generalObjective: String(item.generalObjective || ""),
+        subtopics: subtopics.map((subtopic) => String(subtopic)),
+      };
+    })
+    .filter(Boolean);
+};
 
 export default function SubjectTopics() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { subject, classLevel } = params;
+
+  const subject = String(getParamValue(params.subject) || "");
+  const classLevel = String(getParamValue(params.classLevel) || "");
 
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Track which topic/subtopic's duration picker is visible
-  const [activePicker, setActivePicker] = useState({
-    topic: "",
-    subtopic: "",
-  });
-
-  // Track selected duration per topic/subtopic
   const [selectedDurations, setSelectedDurations] = useState({});
 
-  // Fetch topics
   useEffect(() => {
-    if (!subject || !classLevel) return;
+    if (!subject || !classLevel) {
+      setLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    let isMounted = true;
 
     const fetchTopics = async () => {
       setLoading(true);
+
       try {
         const where = { subject, classLevel };
-        const params = new URLSearchParams({ where: JSON.stringify(where) });
-        const res = await fetch(`${API_BASE_URL}/v2/topics?${params.toString()}`);
+        const query = new URLSearchParams({ where: JSON.stringify(where) });
+        const res = await fetch(`${API_BASE_URL}/v2/topics?${query.toString()}`, {
+          signal: controller.signal,
+        });
+
         const json = await res.json();
-        const validTopics = (json.data || []).filter(
-          (t) => Array.isArray(t.subtopics) && t.subtopics.length > 0
-        );
-        setTopics(validTopics);
-      } catch (e) {
-        console.error("Failed to fetch topics", e);
-        Alert.alert("Error", "Failed to load topics");
+        if (!isMounted) return;
+
+        setTopics(sanitizeTopicList(json?.data));
+      } catch (err) {
+        if (err.name !== "AbortError") {
+          console.error("Failed to fetch topics", err);
+          Alert.alert("Error", "Failed to load topics");
+        }
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     fetchTopics();
-  }, [subject, classLevel]);
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
+  }, [classLevel, subject]);
+
+  const topicCount = useMemo(() => topics.length, [topics]);
 
   const handleDurationSelect = (topicName, subtopicName, duration) => {
-    const topicObj = topics.find((t) => t.name === topicName);
-    const payload = [
-      {
-        name: topicObj.name,
-        description: topicObj.generalObjective || "",
-        subtopic:
-          subtopicName === "" || subtopicName === topicName
-            ? topicObj.subtopics.map((st) => ({ name: st, description: "" }))
-            : [{ name: subtopicName, description: "" }],
-      },
-    ];
+    if (!duration) return;
 
-    // Immediately redirect to quiz-generating
+    const topicObj = topics.find((topic) => topic.name === topicName);
+    if (!topicObj) return;
+
+    const pickerKey = `${topicName}-${subtopicName || "all"}`;
+    setSelectedDurations((prev) => ({ ...prev, [pickerKey]: duration }));
+
+    const includeAllSubtopics = !subtopicName || subtopicName === topicName;
+    const selectedSubtopic = includeAllSubtopics ? "" : String(subtopicName);
+
     router.push({
       pathname: "/quiz-generating",
       params: {
         classLevel,
         subject,
         topic: topicName,
-        subTopics: JSON.stringify(payload),
+        subtopicName: selectedSubtopic,
+        includeAllSubtopics: includeAllSubtopics ? "1" : "0",
         duration,
         quizType: "mcq",
       },
@@ -92,9 +124,9 @@ export default function SubjectTopics() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.subjectTitle}>{subject}</Text>
-        <Text style={styles.meta}>Class: {classLevel}</Text>
-        <Text style={styles.meta}>Topics: {topics.length}</Text>
+        <Text style={styles.subjectTitle}>{subject || "Subject"}</Text>
+        <Text style={styles.meta}>Class: {classLevel || "Not set"}</Text>
+        <Text style={styles.meta}>Topics: {topicCount}</Text>
       </View>
 
       {loading ? (
@@ -104,35 +136,47 @@ export default function SubjectTopics() {
           <View key={topic.id} style={styles.topicCard}>
             <Text style={styles.topicName}>{topic.name}</Text>
 
-            {/* All Subtopics option */}
             <View style={styles.subtopicContainer}>
               <Text style={styles.subtopicText}>Take Quiz: All Subtopics</Text>
-              <Picker
-                selectedValue={selectedDurations[`${topic.name}-all`] || ""}
-                onValueChange={(val) => handleDurationSelect(topic.name, "", val)}
-                style={styles.picker}
-              >
-                <Picker.Item label="Select duration..." value="" />
-                {DURATIONS.map((d) => (
-                  <Picker.Item key={d.value} label={d.label} value={d.value} />
-                ))}
-              </Picker>
+              <View style={styles.durationRow}>
+                {DURATIONS.map((duration) => {
+                  const selectedKey = `${topic.name}-all`;
+                  const isSelected = selectedDurations[selectedKey] === duration.value;
+                  return (
+                    <Pressable
+                      key={duration.value}
+                      onPress={() => handleDurationSelect(topic.name, "", duration.value)}
+                      style={[styles.durationBtn, isSelected && styles.durationBtnActive]}
+                    >
+                      <Text style={[styles.durationBtnText, isSelected && styles.durationBtnTextActive]}>
+                        {duration.label}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
             </View>
 
-            {/* Individual subtopics */}
-            {topic.subtopics.map((st) => (
-              <View key={st} style={styles.subtopicContainer}>
-                <Text style={styles.subtopicText}>{st}</Text>
-                <Picker
-                  selectedValue={selectedDurations[`${topic.name}-${st}`] || ""}
-                  onValueChange={(val) => handleDurationSelect(topic.name, st, val)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select duration..." value="" />
-                  {DURATIONS.map((d) => (
-                    <Picker.Item key={d.value} label={d.label} value={d.value} />
-                  ))}
-                </Picker>
+            {topic.subtopics.map((subtopic) => (
+              <View key={subtopic} style={styles.subtopicContainer}>
+                <Text style={styles.subtopicText}>{subtopic}</Text>
+                <View style={styles.durationRow}>
+                  {DURATIONS.map((duration) => {
+                    const selectedKey = `${topic.name}-${subtopic}`;
+                    const isSelected = selectedDurations[selectedKey] === duration.value;
+                    return (
+                      <Pressable
+                        key={duration.value}
+                        onPress={() => handleDurationSelect(topic.name, subtopic, duration.value)}
+                        style={[styles.durationBtn, isSelected && styles.durationBtnActive]}
+                      >
+                        <Text style={[styles.durationBtnText, isSelected && styles.durationBtnTextActive]}>
+                          {duration.label}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
               </View>
             ))}
 
@@ -166,8 +210,32 @@ const styles = StyleSheet.create({
     borderColor: colors.primaryDark,
     borderRadius: 10,
     marginVertical: 6,
-    backgroundColor: colors.secondaryLight + "10", // light tint
+    backgroundColor: `${colors.secondaryLight}10`,
   },
   subtopicText: { fontSize: 14, color: colors.mutedBlack, marginBottom: 4 },
-  picker: { width: "100%", backgroundColor: "#f5f5f5" },
+  durationRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginTop: 4,
+  },
+  durationBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: colors.primaryDark,
+    backgroundColor: colors.white,
+  },
+  durationBtnActive: {
+    backgroundColor: colors.secondary,
+    borderColor: colors.secondary,
+  },
+  durationBtnText: {
+    color: colors.primaryDark,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  durationBtnTextActive: {
+    color: colors.white,
+  },
 });

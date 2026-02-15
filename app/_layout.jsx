@@ -20,7 +20,7 @@ export default function RootLayout() {
 
     return (
       <TouchableOpacity
-        onPress={() => navigationRef.navigate(route)}
+        onPress={() => navigationRef?.navigate?.(route)}
         style={[
           styles.link,
           active && styles.activeLink,
@@ -63,7 +63,7 @@ export default function RootLayout() {
       checkSession();
       const interval = setInterval(checkSession, 60 * 1000); // check every minute
       return () => clearInterval(interval);
-    }, []);
+    }, [logout, navigation, verifySession]);
 
     if (isLoading) return null; // wait until auth state is loaded
 
@@ -94,7 +94,6 @@ export default function RootLayout() {
               style={[
                 styles.link,
                 {
-                  backgroundColor: colors.red,
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 12,

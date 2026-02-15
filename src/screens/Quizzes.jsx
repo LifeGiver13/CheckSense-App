@@ -16,6 +16,25 @@ import { API_BASE_URL } from "../../theme/constants";
 
 const PAGE_SIZE = 10;
 
+const normalizeText = (value, fallback = "") => {
+    if (value === null || value === undefined) return fallback;
+    if (typeof value === "string") return value;
+    if (typeof value === "number" || typeof value === "boolean") return String(value);
+    if (typeof value === "object") {
+        const preferred = value.name ?? value.label ?? value.value ?? value.text;
+        if (preferred !== null && preferred !== undefined) return String(preferred);
+        return fallback;
+    }
+    return fallback;
+};
+
+const getTopicLabel = (topicValue) => {
+    if (!topicValue) return "";
+    if (Array.isArray(topicValue)) return normalizeText(topicValue[0]?.name || topicValue[0], "");
+    if (typeof topicValue === "object") return normalizeText(topicValue.name || topicValue.topic, "");
+    return normalizeText(topicValue, "");
+};
+
 export default function Quizzes() {
     const router = useRouter();
     const { token, user, isLoading: authLoading } = useAuth();
@@ -36,41 +55,54 @@ export default function Quizzes() {
     };
 
     const fetchQuizAttempts = useCallback(
-        async (offset = 0) => {
+        
+        async (offset = 0, signal) => {
             const userId = user?.id || user?.uid;
             if (!token || !userId) return;
 
             setLoading(true);
+
             try {
                 const where = encodeURIComponent(JSON.stringify({ userId }));
+
                 const res = await fetch(
                     `${API_BASE_URL}/v2/my/quiz-attempt?where=${where}&limit=${PAGE_SIZE}&offset=${offset}`,
                     {
                         headers: { Authorization: `Bearer ${token}` },
+                        signal,
                     }
                 );
 
                 const json = await res.json();
 
-                setQuizAttempts(json.data || []);
+                setQuizAttempts(Array.isArray(json.data) ? json.data : []);
                 setPagination({
                     total: json.total || 0,
                     limit: json.limit || PAGE_SIZE,
                     offset: json.offset || 0,
                 });
             } catch (e) {
-                console.log("Fetch error:", e);
+                if (e.name !== "AbortError") {
+                    console.log("Fetch error:", e);
+                }
             } finally {
                 setLoading(false);
             }
         },
         [token, user]
     );
+
     useFocusEffect(
         useCallback(() => {
-            if (!authLoading) {
-                fetchQuizAttempts(0);
-            }
+            if (authLoading) return;
+
+            const controller = new AbortController();
+
+            fetchQuizAttempts(0, controller.signal);
+
+            return () => {
+                controller.abort();
+            };
         }, [authLoading, fetchQuizAttempts])
     );
 
@@ -87,11 +119,10 @@ export default function Quizzes() {
                 ? challenges
                 : completed;
 
-    const startQuiz = quiz => {
-        router.push({
-            pathname: "/quiz/[id]",
-            params: { id: quiz.id, mode: quiz.quizMode || "practice" },
-        });
+    const startQuiz = (attempt) => {
+        const attemptId = attempt?.id;
+        if (!attemptId) return;
+        router.push(`/quiz/${attemptId}`);
     };
     const dismissQuiz = id => {
         setQuizAttempts(prev => prev.filter(q => q.id !== id));
@@ -129,7 +160,7 @@ export default function Quizzes() {
             {/* List */}
             <FlatList
                 data={data}
-                keyExtractor={item => item.id}
+                keyExtractor={(item, index) => item?.id?.toString() || index.toString()}
                 contentContainerStyle={{ paddingBottom: 40 }}
                 ListEmptyComponent={
                     <Text style={styles.empty}>No quizzes here</Text>
@@ -137,23 +168,29 @@ export default function Quizzes() {
                 renderItem={({ item }) => {
 
                     const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+                    const subjectLabel = normalizeText(item?.subject, "Unknown Subject");
+                    const classLabel = normalizeText(item?.classLevel, "Unknown Class");
+                    const quizTypeLabel = normalizeText(item?.quizType, "mcq");
+                    const modeLabel = capitalize(normalizeText(item?.quizMode, "practice"));
+                    const topicLabel = getTopicLabel(item?.topic);
+                    const hasScore = item?.score !== null && item?.score !== undefined;
 
                     return (
                         <View style={styles.card}>
                             {/* First line */}
                             <Text style={styles.firstLine}>
-                                {item.subject} • {item.classLevel} • {item.quizType} • {capitalize(item.quizMode) + ' Mode'}
-                                {item.score !== null ? ` • Score: ${item.score}%` : ""}
+                                {subjectLabel} - {classLabel} - {quizTypeLabel} - {modeLabel} Mode
+                                {hasScore ? ` - Score: ${item.score}%` : ""}
                             </Text>
 
                             {/* Second line: topic */}
                             <Text style={styles.secondLine}>
-                                Topic: {item.topic[0]?.name || ""}
+                                Topic: {topicLabel}
                             </Text>
 
                             {/* Third line: created and updated */}
                             <Text style={styles.thirdLine}>
-                                Created: {formatDateTime(item.createdAt)} • Updated: {formatDateTime(item.updatedAt)}
+                                Created: {formatDateTime(item.createdAt)} - Updated: {formatDateTime(item.updatedAt)}
                             </Text>
 
                             {/* Action buttons */}
@@ -162,7 +199,7 @@ export default function Quizzes() {
                                     <>
                                         <TouchableOpacity
                                             style={styles.buttonReview}
-                                            onPress={() => router.push(`/quiz/${item.id}/results`)}
+                                            onPress={() => item?.id && router.push(`/quiz-results/${item.id}`)}
                                         >
                                             <Ionicons name="eye" size={16} color={colors.primaryDark} />
                                             <Text style={styles.buttonTextReview}>Review</Text>
@@ -170,7 +207,7 @@ export default function Quizzes() {
 
                                         <TouchableOpacity
                                             style={styles.buttonContinue}
-                                            onPress={() => router.push(`/choose-quiz-type/${item.quizId}`)}
+                                            onPress={() => item?.quizId && router.push(`/choose-quiz-type/${item.quizId}`)}
                                         >
                                             <Ionicons name="refresh" size={16} color={colors.white} />
                                             <Text style={styles.buttonTextContinue}>Retake</Text>
@@ -392,3 +429,5 @@ const styles = StyleSheet.create({
 
 
 });
+
+

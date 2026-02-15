@@ -5,6 +5,15 @@ import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import ActionCard from '../src/components/ActionCard.jsx';
 import { colors } from '../theme/colors.jsx';
+
+const safeParseJSON = (value, fallback) => {
+    try {
+        return JSON.parse(value);
+    } catch {
+        return fallback;
+    }
+};
+
 export default function Dashboard() {
     const router = useRouter()
     const [username, setUsername] = useState('');
@@ -16,8 +25,10 @@ export default function Dashboard() {
             try {
                 const userData = await AsyncStorage.getItem('auth_user');
                 if (userData) {
-                    const parsed = JSON.parse(userData);
-                    setUsername(parsed.username || '');
+                    const parsed = safeParseJSON(userData, null);
+                    if (parsed) {
+                        setUsername(parsed.username || parsed.firstName || '');
+                    }
                 }
             } catch (error) {
                 console.log('Failed to load user', error);
@@ -47,7 +58,7 @@ export default function Dashboard() {
                     description="Browse subjects and topics to find quizzes"
                     buttons={[
                         {
-                            label: "Browser Subjects",
+                            label: "Browse Subjects",
                             icon: <Feather name="folder" size={18} color={colors.white} />,
                             onPress: () => { router.push('/browse-subjects') },
                             type: "primary",
@@ -62,7 +73,7 @@ export default function Dashboard() {
                         {
                             label: "Quiz",
                             icon: <Feather name="book-open" size={18} color={colors.white} />,
-                            onPress: () => { router.push('/browse-subjects') },
+                            onPress: () => { router.push('/quizzes') },
                             type: "primary",
                         },
                         {
@@ -84,7 +95,7 @@ export default function Dashboard() {
                         {
                             label: "Games",
                             icon: <Feather name="play" size={18} color={colors.white} />,
-                            onPress: () => { router.push('/games') },
+                            onPress: () => { router.push('/browse-subjects') },
                             type: "primary",
                         },
                     ]}
@@ -168,7 +179,6 @@ const styles = StyleSheet.create({
         display:'flex',
         flexDirection:'column',
         justifyContent:'flex-start',
-        textAlign:'left',
-        marginLeft: -50
+        alignItems:'flex-start'
     }
 });

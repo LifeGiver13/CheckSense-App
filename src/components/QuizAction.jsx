@@ -32,12 +32,12 @@ const styles = StyleSheet.create({
     info:{
         justifyContent: 'flex-start',
         marginLeft: 5,
-        alignItems:'left'
+        alignItems:'flex-start'
     },
     titleCont: {
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'left',
+        alignItems: 'flex-start',
         justifyContent: 'flex-start',
     }
     ,

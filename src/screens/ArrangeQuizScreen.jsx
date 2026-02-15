@@ -53,52 +53,115 @@ export default function ArrangeQuiz() {
   const [quizDuration, setQuizDuration] = useState("");
   const [quizType, setQuizType] = useState("");
 
+  const [submitting, setSubmitting] = useState(false);
+
+  const normalizeText = (value) => {
+    if (value === null || value === undefined) return "";
+    if (typeof value === "string") return value.trim();
+    if (typeof value === "object") {
+      return String(value.name || value.label || value.value || "").trim();
+    }
+    return String(value).trim();
+  };
+
+  const resetForm = useCallback(() => {
+    setSelectedClass(userDefaultClass || "Upper Sixth");
+    setSubjects([]);
+    setTopics([]);
+    setSubtopics([]);
+    setSelectedSubject("");
+    setSelectedTopic("");
+    setSelectedSubtopics([]);
+    setQuizDuration("");
+    setQuizType("");
+    setSubmitting(false);
+  }, [userDefaultClass]);
+
+  useFocusEffect(
+    useCallback(() => {
+      resetForm();
+    }, [resetForm])
+  );
+
 
   // Fetch subjects
-useFocusEffect(
-  useCallback(() => {
-    async function loadSubjects() {
+  useFocusEffect(
+    useCallback(() => {
       if (!selectedClass) return;
 
-      setLoadingSubjects(true);
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/subjects/filter?classLevel=${selectedClass}`
-        );
-        const data = await res.json();
-        setSubjects(data.data || []);
-      } catch {
-        Alert.alert("Failed to fetch subjects");
-      } finally {
-        setLoadingSubjects(false);
-      }
-    }
+      const controller = new AbortController();
+      let isMounted = true;
 
-    loadSubjects();
-  }, [selectedClass])
-);
+      async function loadSubjects() {
+        setLoadingSubjects(true);
+        try {
+          const res = await fetch(
+            `${API_BASE_URL}/subjects/filter?classLevel=${selectedClass}`,
+            { signal: controller.signal }
+          );
+
+          const data = await res.json();
+
+          if (isMounted) {
+            setSubjects(Array.isArray(data?.data) ? data.data : []);
+          }
+        } catch (err) {
+          if (err.name !== "AbortError") {
+            Alert.alert("Failed to fetch subjects");
+            console.log("Subjects error:", err);
+          }
+        } finally {
+          if (isMounted) setLoadingSubjects(false);
+        }
+      }
+
+      loadSubjects();
+
+      return () => {
+        isMounted = false;
+        controller.abort();
+      };
+    }, [selectedClass])
+  );
 
   // Fetch topics when class + subject change
   useEffect(() => {
+    if (!selectedClass || !selectedSubject) return;
+
+    const controller = new AbortController();
+    let isMounted = true;
+
     async function loadTopics() {
-      if (!selectedClass || !selectedSubject) return;
       setLoadingTopics(true);
       try {
         const res = await fetch(
           `${API_BASE_URL}/filter-topics?subject=${encodeURIComponent(
             selectedSubject
-          )}&classLevel=${encodeURIComponent(selectedClass)}`
+          )}&classLevel=${encodeURIComponent(selectedClass)}`,
+          { signal: controller.signal }
         );
+
         const data = await res.json();
-        setTopics(data.data || []);
+
+        if (isMounted) {
+          setTopics(Array.isArray(data?.data) ? data.data : []);
+        }
       } catch (err) {
-        Alert.alert("Failed to fetch topics");
-        console.error(err);
+        if (err.name !== "AbortError") {
+          Alert.alert("Failed to fetch topics");
+          console.log("Topics error:", err);
+        }
       } finally {
-        setLoadingTopics(false);
+        if (isMounted) setLoadingTopics(false);
       }
     }
+
     loadTopics();
+
+    return () => {
+      isMounted = false;
+      controller.abort();
+    };
   }, [selectedClass, selectedSubject]);
 
   // Update subtopics when topic changes
@@ -114,76 +177,68 @@ useFocusEffect(
     );
   };
 
-    const handleContinue = () => {
-      if (!selectedClass || !selectedSubject || !selectedTopic) {
-        Alert.alert("Please select class, subject, and topic");
-        return;
-      }
-      if (!quizDuration || !quizType) {
-        Alert.alert("Please select quiz duration and question type");
-        return;
-      }
+  const handleContinue = () => {
+    if (submitting) return;
 
-      // Prepare topics payload
-      const topicsPayload = [
-        {
-          name: selectedTopic,
-          description: "", // empty for now, can be filled if needed
-          subtopic: (selectedSubtopics.length > 0 ? selectedSubtopics : subtopics).map((st) => ({
-            name: st,
-            description: "",
-          })),
-        },
-      ];
+    const normalizedClass = normalizeText(selectedClass);
+    const normalizedSubject = normalizeText(selectedSubject);
+    const normalizedTopic = normalizeText(selectedTopic);
+
+    if (!normalizedClass || !normalizedSubject || !normalizedTopic) {
+      Alert.alert("Please select class, subject, and topic");
+      return;
+    }
+
+    if (!quizDuration || !quizType) {
+      Alert.alert("Please select quiz duration and question type");
+      return;
+    }
+
+    setSubmitting(true);
+
+    try {
+      const sourceSubtopics =
+        selectedSubtopics.length > 0 ? selectedSubtopics : subtopics;
+
+      const normalizedSubtopics = sourceSubtopics
+        .map((subtopic) => normalizeText(subtopic))
+        .filter((subtopic) => subtopic.length > 0);
+
+      const subtopicNamesString = JSON.stringify(normalizedSubtopics);
 
       router.push({
         pathname: "/quiz-generating",
         params: {
-          classLevel: selectedClass,
-          subject: selectedSubject,
-          topic: selectedTopic,
-          subTopics: JSON.stringify(topicsPayload),
+          classLevel: normalizedClass,
+          subject: normalizedSubject,
+          topic: normalizedTopic,
+          subtopicNames: subtopicNamesString,
           duration: quizDuration,
           quizType,
         },
       });
-    };
-
-    //To reset feilds after redirection
-    const resetForm = () => {
-      setSelectedClass(userDefaultClass || "Upper Sixth");
-
-      setSubjects([]);
-      setTopics([]);
-      setSubtopics([]);
-
-      setSelectedSubject("");
-      setSelectedTopic("");
-      setSelectedSubtopics([]);
-
-      setQuizDuration("");
-      setQuizType("");
-    };
-
-    useFocusEffect(
-      useCallback(() => {
-        resetForm();
-      }, [])
-    );
+    } catch (err) {
+      console.log("Navigation error:", err);
+      Alert.alert("Something went wrong");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+  
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* <View style={styles.topHeader}>
         <AppLogoPages />
       </View> */}
-       
-        <View style={styles.arrangeQuiz}>
-      <Text style={styles.title}>Arrange Your Quiz</Text>
+
+      <View style={styles.arrangeQuiz}>
+        <Text style={styles.title}>Arrange Your Quiz</Text>
 
         <Text style={styles.subtitle}>
-        Choose your preferences to create a personalized study session      
+          Choose your preferences to create a personalized study session
         </Text>
-        </View>
+      </View>
 
 
       {/* Class Picker */}
@@ -219,9 +274,9 @@ useFocusEffect(
           }}
           style={styles.picker}
         >
-            <Picker.Item label="Select subject..." value="" />
+          <Picker.Item label="Select subject..." value="" />
           {subjects.map((s) => (
-            <Picker.Item  key={s.name} label={s.name} value={s.name} />
+            <Picker.Item key={s.name} label={s.name} value={s.name} />
           ))}
         </Picker>
       )}
@@ -254,7 +309,7 @@ useFocusEffect(
               style={[
                 styles.subTopicItem,
                 selectedSubtopics.includes(st) &&
-                  styles.subTopicSelected,
+                styles.subTopicSelected,
               ]}
             >
               <Text style={styles.subTopicText}>{st}</Text>
@@ -266,9 +321,9 @@ useFocusEffect(
       <View>
         <Text style={styles.label}>⏱️ Quiz Duration</Text>
         <View style={styles.features}>
-         <Duration
+          <Duration
             icon={<Feather name="zap" size={28} color={colors.white} />}
-            title="Short"              
+            title="Short"
             selected={quizDuration === "short"}
             description="7 questions • 5 - 10 min"
             onSelect={() => setQuizDuration("short")}
@@ -290,9 +345,9 @@ useFocusEffect(
             selected={quizDuration === "long"}
           />
 
-          </View>
         </View>
-        <View>
+      </View>
+      <View>
         <Text style={styles.label}>❓Question Type</Text>
         <View style={styles.features}>
           <QuizType
@@ -301,7 +356,7 @@ useFocusEffect(
             description="Choose from 4 possible answers"
             onSelect={() => setQuizType("mcq")}
             selected={quizType === "mcq"}
-    
+
           />
 
           <QuizType
@@ -312,10 +367,14 @@ useFocusEffect(
             selected={quizType === "saq"}
           />
 
-          </View>
         </View>
+      </View>
 
-      <Pressable style={styles.continueBtn} onPress={handleContinue}>
+      <Pressable
+        style={styles.continueBtn}
+        onPress={handleContinue}
+        disabled={submitting}
+      >
         <Text style={styles.continueText}>Continue</Text>
       </Pressable>
     </ScrollView>
@@ -345,7 +404,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     marginBottom: 30,
   },
-     label: {
+  label: {
     fontSize: 16,
     color: colors.black,
     marginVertical: 8,
@@ -386,7 +445,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "bold",
   },
-    features: {
+  features: {
     width: '90%',
     marginTop: 40,
     gap: 20,
@@ -394,7 +453,7 @@ const styles = StyleSheet.create({
   },
   arrangeQuiz: {
     backgroundColor: colors.primaryDark,
-    alignItems:'left',
+    alignItems: 'flex-start',
     borderRadius: 20,
     padding: 16
   }

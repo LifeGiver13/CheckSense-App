@@ -108,12 +108,12 @@ export default function LoginScreen() {
             <ActivityIndicator color={colors.white} />
           ) : (
             <Text style={styles.buttonText}>Login</Text>
-          )}
+           )}
         </Pressable>
 
         {/* Sign Up Link */}
         <View style={styles.bottomText}>
-          <Text style={{ color: colors.black }}>Don't have an account? </Text>
+          <Text style={{ color: colors.black }}>Don&apos;t have an account? </Text>
           <Text style={styles.link} onPress={() => router.push('/register')}>
             Sign Up
           </Text>
