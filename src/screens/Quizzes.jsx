@@ -15,6 +15,11 @@ import { colors } from "../../theme/colors";
 import { API_BASE_URL } from "../../theme/constants";
 
 const PAGE_SIZE = 10;
+const getSubjectName = (subject) => {
+    if (typeof subject === "string") return subject;
+    if (subject && typeof subject === "object") return String(subject.name || "").trim();
+    return "";
+};
 
 export default function Quizzes() {
     const router = useRouter();
@@ -87,11 +92,8 @@ export default function Quizzes() {
                 ? challenges
                 : completed;
 
-    const startQuiz = quiz => {
-        router.push({
-            pathname: "/quiz/[id]",
-            params: { id: quiz.id, mode: quiz.quizMode || "practice" },
-        });
+    const startQuiz = (quiz) => {
+        router.push(`/quiz/${quiz.id}`);
     };
     const dismissQuiz = id => {
         setQuizAttempts(prev => prev.filter(q => q.id !== id));
@@ -137,18 +139,26 @@ export default function Quizzes() {
                 renderItem={({ item }) => {
 
                     const capitalize = (str) => str ? str.charAt(0).toUpperCase() + str.slice(1) : "";
+                    const subjectName = getSubjectName(item.subject) || "--";
+                    const classLevel =
+                        item.classLevel ||
+                        (item.subject && typeof item.subject === "object" ? item.subject.classLevel : "") ||
+                        "--";
+                    const topicName = Array.isArray(item.topic)
+                        ? item.topic?.[0]?.name || ""
+                        : item.topic?.name || "";
 
                     return (
                         <View style={styles.card}>
                             {/* First line */}
                             <Text style={styles.firstLine}>
-                                {item.subject} • {item.classLevel} • {item.quizType} • {capitalize(item.quizMode) + ' Mode'}
+                                {subjectName} • {classLevel} • {item.quizType} • {capitalize(item.quizMode) + ' Mode'}
                                 {item.score !== null ? ` • Score: ${item.score}%` : ""}
                             </Text>
 
                             {/* Second line: topic */}
                             <Text style={styles.secondLine}>
-                                Topic: {item.topic[0]?.name || ""}
+                                Topic: {topicName}
                             </Text>
 
                             {/* Third line: created and updated */}
@@ -162,7 +172,7 @@ export default function Quizzes() {
                                     <>
                                         <TouchableOpacity
                                             style={styles.buttonReview}
-                                            onPress={() => router.push(`/quiz/${item.id}/results`)}
+                                            onPress={() => router.push(`/quiz-results/${item.id}`)}
                                         >
                                             <Ionicons name="eye" size={16} color={colors.primaryDark} />
                                             <Text style={styles.buttonTextReview}>Review</Text>

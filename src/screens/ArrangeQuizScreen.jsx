@@ -13,8 +13,9 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext.jsx";
+import { useCurriculum } from "../../contexts/CurriculumContext.jsx";
+import { useQuizGeneration } from "../../contexts/QuizgenerationContext.jsx";
 import { colors } from "../../theme/colors.jsx";
-import { API_BASE_URL } from "../../theme/constants.jsx";
 import Duration from "../components/Duration.jsx";
 import QuizType from "../components/QuizType.jsx";
 
@@ -30,9 +31,10 @@ const CLASSES = [
 
 export default function ArrangeQuiz() {
   const { user } = useAuth();
+  const { getSubjects, getTopics } = useCurriculum();
 
   const router = useRouter()
-
+  const { setQuizConfig } = useQuizGeneration()
   const userProfile = user?.profile || {};
   const userDefaultClass = userProfile?.defaultClass;
 
@@ -55,28 +57,25 @@ export default function ArrangeQuiz() {
 
 
   // Fetch subjects
-useFocusEffect(
-  useCallback(() => {
-    async function loadSubjects() {
-      if (!selectedClass) return;
+  useFocusEffect(
+    useCallback(() => {
+      async function loadSubjects() {
+        if (!selectedClass) return;
 
-      setLoadingSubjects(true);
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/subjects/filter?classLevel=${selectedClass}`
-        );
-        const data = await res.json();
-        setSubjects(data.data || []);
-      } catch {
-        Alert.alert("Failed to fetch subjects");
-      } finally {
-        setLoadingSubjects(false);
+        setLoadingSubjects(true);
+        try {
+          const data = await getSubjects({ classLevel: selectedClass });
+          setSubjects(data || []);
+        } catch (_err) {
+          Alert.alert("Failed to fetch subjects");
+        } finally {
+          setLoadingSubjects(false);
+        }
       }
-    }
 
-    loadSubjects();
-  }, [selectedClass])
-);
+      loadSubjects();
+    }, [selectedClass, getSubjects])
+  );
 
   // Fetch topics when class + subject change
   useEffect(() => {
@@ -84,13 +83,11 @@ useFocusEffect(
       if (!selectedClass || !selectedSubject) return;
       setLoadingTopics(true);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/filter-topics?subject=${encodeURIComponent(
-            selectedSubject
-          )}&classLevel=${encodeURIComponent(selectedClass)}`
-        );
-        const data = await res.json();
-        setTopics(data.data || []);
+        const data = await getTopics({
+          classLevel: selectedClass,
+          subject: selectedSubject,
+        });
+        setTopics(data || []);
       } catch (err) {
         Alert.alert("Failed to fetch topics");
         console.error(err);
@@ -99,7 +96,7 @@ useFocusEffect(
       }
     }
     loadTopics();
-  }, [selectedClass, selectedSubject]);
+  }, [selectedClass, selectedSubject, getTopics]);
 
   // Update subtopics when topic changes
   useEffect(() => {
@@ -114,76 +111,54 @@ useFocusEffect(
     );
   };
 
-    const handleContinue = () => {
-      if (!selectedClass || !selectedSubject || !selectedTopic) {
-        Alert.alert("Please select class, subject, and topic");
-        return;
-      }
-      if (!quizDuration || !quizType) {
-        Alert.alert("Please select quiz duration and question type");
-        return;
-      }
+  const handleContinue = () => {
+    if (!selectedClass || !selectedSubject || !selectedTopic) {
+      Alert.alert("Please select class, subject, and topic");
+      return;
+    }
+    if (!quizDuration || !quizType) {
+      Alert.alert("Please select quiz duration and question type");
+      return;
+    }
 
-      // Prepare topics payload
-      const topicsPayload = [
-        {
-          name: selectedTopic,
-          description: "", // empty for now, can be filled if needed
-          subtopic: (selectedSubtopics.length > 0 ? selectedSubtopics : subtopics).map((st) => ({
-            name: st,
-            description: "",
-          })),
-        },
-      ];
+    // Prepare topics payload
+    const topicsPayload = [
+      {
+        name: selectedTopic,
+        description: "", // empty for now, can be filled if needed
+        subtopic: (selectedSubtopics.length > 0 ? selectedSubtopics : subtopics).map((st) => ({
+          name: st,
+          description: "",
+        })),
+      },
+    ];
+    setQuizConfig({
+      classLevel: selectedClass,
+      subject: selectedSubject,
+      topic: selectedTopic,
+      topics: topicsPayload,
+      duration: quizDuration,
+      quizType,
+    });
 
-      router.push({
-        pathname: "/quiz-generating",
-        params: {
-          classLevel: selectedClass,
-          subject: selectedSubject,
-          topic: selectedTopic,
-          subTopics: JSON.stringify(topicsPayload),
-          duration: quizDuration,
-          quizType,
-        },
-      });
-    };
+    router.push("/quiz-generating");
 
-    //To reset feilds after redirection
-    const resetForm = () => {
-      setSelectedClass(userDefaultClass || "Upper Sixth");
 
-      setSubjects([]);
-      setTopics([]);
-      setSubtopics([]);
-
-      setSelectedSubject("");
-      setSelectedTopic("");
-      setSelectedSubtopics([]);
-
-      setQuizDuration("");
-      setQuizType("");
-    };
-
-    useFocusEffect(
-      useCallback(() => {
-        resetForm();
-      }, [])
-    );
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
       {/* <View style={styles.topHeader}>
         <AppLogoPages />
       </View> */}
-       
-        <View style={styles.arrangeQuiz}>
-      <Text style={styles.title}>Arrange Your Quiz</Text>
+
+      <View style={styles.arrangeQuiz}>
+        <Text style={styles.title}>Arrange Your Quiz</Text>
 
         <Text style={styles.subtitle}>
-        Choose your preferences to create a personalized study session      
+          Choose your preferences to create a personalized study session
         </Text>
-        </View>
+      </View>
 
 
       {/* Class Picker */}
@@ -219,9 +194,9 @@ useFocusEffect(
           }}
           style={styles.picker}
         >
-            <Picker.Item label="Select subject..." value="" />
+          <Picker.Item label="Select subject..." value="" />
           {subjects.map((s) => (
-            <Picker.Item  key={s.name} label={s.name} value={s.name} />
+            <Picker.Item key={s.name} label={s.name} value={s.name} />
           ))}
         </Picker>
       )}
@@ -254,7 +229,7 @@ useFocusEffect(
               style={[
                 styles.subTopicItem,
                 selectedSubtopics.includes(st) &&
-                  styles.subTopicSelected,
+                styles.subTopicSelected,
               ]}
             >
               <Text style={styles.subTopicText}>{st}</Text>
@@ -266,9 +241,9 @@ useFocusEffect(
       <View>
         <Text style={styles.label}>⏱️ Quiz Duration</Text>
         <View style={styles.features}>
-         <Duration
+          <Duration
             icon={<Feather name="zap" size={28} color={colors.white} />}
-            title="Short"              
+            title="Short"
             selected={quizDuration === "short"}
             description="7 questions • 5 - 10 min"
             onSelect={() => setQuizDuration("short")}
@@ -290,9 +265,9 @@ useFocusEffect(
             selected={quizDuration === "long"}
           />
 
-          </View>
         </View>
-        <View>
+      </View>
+      <View>
         <Text style={styles.label}>❓Question Type</Text>
         <View style={styles.features}>
           <QuizType
@@ -301,7 +276,7 @@ useFocusEffect(
             description="Choose from 4 possible answers"
             onSelect={() => setQuizType("mcq")}
             selected={quizType === "mcq"}
-    
+
           />
 
           <QuizType
@@ -312,8 +287,8 @@ useFocusEffect(
             selected={quizType === "saq"}
           />
 
-          </View>
         </View>
+      </View>
 
       <Pressable style={styles.continueBtn} onPress={handleContinue}>
         <Text style={styles.continueText}>Continue</Text>
@@ -345,7 +320,7 @@ const styles = StyleSheet.create({
     textAlign: 'left',
     marginBottom: 30,
   },
-     label: {
+  label: {
     fontSize: 16,
     color: colors.black,
     marginVertical: 8,
@@ -386,7 +361,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontWeight: "bold",
   },
-    features: {
+  features: {
     width: '90%',
     marginTop: 40,
     gap: 20,
@@ -394,7 +369,7 @@ const styles = StyleSheet.create({
   },
   arrangeQuiz: {
     backgroundColor: colors.primaryDark,
-    alignItems:'left',
+    alignItems: 'left',
     borderRadius: 20,
     padding: 16
   }

@@ -11,11 +11,12 @@ import {
     Text,
     View,
 } from "react-native";
+import { useCurriculum } from "../contexts/CurriculumContext.jsx";
 import { colors } from "../theme/colors.jsx";
-import { API_BASE_URL } from "../theme/constants.jsx";
 
 export default function BrowseSubjects() {
     const router = useRouter();
+    const { getSubjectsWithTopicCounts } = useCurriculum();
 
     const [classLevel, setClassLevel] = useState("");
     const [userSubjects, setUserSubjects] = useState([]);
@@ -26,16 +27,25 @@ export default function BrowseSubjects() {
     // Load user profile
     useEffect(() => {
         const loadUser = async () => {
-            const raw = await AsyncStorage.getItem("auth_user");
-            if (!raw) return;
+            try {
+                const raw = await AsyncStorage.getItem("auth_user");
+                if (!raw) return;
 
-            const user = JSON.parse(raw);
-            setClassLevel(user?.profile?.defaultClass || "");
-            setUserSubjects(user?.profile?.subjects || []);
+                const user = JSON.parse(raw);
+                const subjects = Array.isArray(user?.profile?.subjects)
+                    ? user.profile.subjects
+                    : [];
 
-            // Default selectedSubject to first user subject
-            if (user?.profile?.subjects?.length) {
-                setSelectedSubject(user.profile.subjects[0]);
+                setClassLevel(user?.profile?.defaultClass || "");
+                setUserSubjects(subjects);
+
+                // Default selectedSubject to first user subject
+                if (subjects.length) {
+                    setSelectedSubject(subjects[0]);
+                }
+            } catch (_err) {
+                setClassLevel("");
+                setUserSubjects([]);
             }
         };
 
@@ -49,42 +59,10 @@ export default function BrowseSubjects() {
         const fetchSubjectsAndTopics = async () => {
             setLoading(true);
             try {
-                // Fetch subjects
-                const subjectWhere = { classLevel };
-                if (selectedSubject) subjectWhere.name = selectedSubject;
-
-                const subjectParams = new URLSearchParams({
-                    where: JSON.stringify(subjectWhere),
+                const subjectsWithCounts = await getSubjectsWithTopicCounts({
+                    classLevel,
+                    selectedSubject,
                 });
-
-                const resSubjects = await fetch(`${API_BASE_URL}/v2/subjects?${subjectParams.toString()}`);
-                const jsonSubjects = await resSubjects.json();
-                const subjects = jsonSubjects.data || [];
-
-                // Fetch topics for each subject
-                const subjectsWithCounts = await Promise.all(
-                    subjects.map(async (subject) => {
-                        const topicWhere = {
-                            classLevel,
-                            subject: subject.name,
-                        };
-                        const topicParams = new URLSearchParams({
-                            where: JSON.stringify(topicWhere),
-                        });
-
-                        const resTopics = await fetch(`${API_BASE_URL}/v2/topics?${topicParams.toString()}`);
-                        const jsonTopics = await resTopics.json();
-                        const validTopics = (jsonTopics.data || []).filter(
-                            (topic) => Array.isArray(topic.subtopics) && topic.subtopics.length > 0
-                        );
-
-                        return {
-                            ...subject,
-                            topicCount: validTopics.length,
-                        };
-                    })
-                );
-
                 setSubjectsWithTopics(subjectsWithCounts);
             } catch (e) {
                 console.error("Failed to load subjects/topics", e);
@@ -94,7 +72,7 @@ export default function BrowseSubjects() {
         };
 
         fetchSubjectsAndTopics();
-    }, [classLevel, selectedSubject]);
+    }, [classLevel, selectedSubject, getSubjectsWithTopicCounts]);
 
     return (
         <ScrollView contentContainerStyle={styles.container}>

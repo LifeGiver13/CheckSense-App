@@ -2,22 +2,30 @@ import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
+import { useQuizSession } from "../../contexts/QuizSessionContext";
 import { colors } from "../../theme/colors";
-import { API_BASE_URL } from "../../theme/constants";
+
+const getSubjectName = (subject) => {
+  if (typeof subject === "string") return subject;
+  if (subject && typeof subject === "object") return String(subject.name || "").trim();
+  return "";
+};
 
 export default function ChooseQuizType() {
   const { id: quizId } = useLocalSearchParams();
+  const resolvedQuizId = Array.isArray(quizId) ? quizId[0] : quizId;
   const router = useRouter();
-  const { token, user } = useAuth();
+  const { user } = useAuth();
+  const { fetchQuizById, startAttempt } = useQuizSession();
 
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,21 +34,15 @@ export default function ChooseQuizType() {
 
   useEffect(() => {
     async function fetchQuiz() {
-      if (!quizId || !token) {
+      if (!resolvedQuizId) {
         setLoading(false);
         return;
       }
 
       try {
-        const res = await fetch(`${API_BASE_URL}/v2/quiz/${quizId}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-
-        if (!res.ok) throw new Error("Fetch failed");
-
-        const result = await res.json();
-        setQuizData(result.data);
-      } catch (err) {
+        const data = await fetchQuizById(resolvedQuizId);
+        setQuizData(data);
+      } catch (_err) {
         Alert.alert("Error", "Failed to load quiz");
       } finally {
         setLoading(false);
@@ -48,36 +50,23 @@ export default function ChooseQuizType() {
     }
 
     fetchQuiz();
-  }, [quizId, token]);
+  }, [resolvedQuizId, fetchQuizById]);
 
   const handleStartQuiz = async () => {
     setStarting(true);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/v2/quiz-attempt`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          quizId,
-          userId: user.uid,
-          classLevel: quizData.classLevel,
-          subject: quizData.subject,
-          topic: quizData.topics,
-          quizMode: selectedMode,
-          quizType: quizData.type === "mcq" ? "mcq" : "saq",
-        }),
+      const attemptId = await startAttempt({
+        quizId: resolvedQuizId,
+        quizMode: selectedMode,
+        userId: user?.id || user?.uid,
+        quizData,
       });
 
-      if (!res.ok) throw new Error("Attempt failed");
-
-      const result = await res.json();
-      const attemptId = result.data?.id || result.id;
+      if (!attemptId) return;
 
       router.push(`/quiz/${attemptId}`);
-    } catch (err) {
+    } catch (_err) {
       Alert.alert("Error", "Failed to start quiz");
     } finally {
       setStarting(false);
@@ -100,6 +89,15 @@ export default function ChooseQuizType() {
     );
   }
 
+  const subjectName = getSubjectName(quizData.subject);
+  const classLevel =
+    quizData.classLevel ||
+    (quizData.subject && typeof quizData.subject === "object"
+      ? quizData.subject.classLevel
+      : "") ||
+    "--";
+  const topicName = quizData.topics?.[0]?.name || "--";
+
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <Text style={styles.title}>Choose Quiz Mode</Text>
@@ -114,16 +112,16 @@ export default function ChooseQuizType() {
         </View> */}
         <View style={styles.textholder}>
         <Text style={styles.subtitle}>ClassLevel</Text>
-        <Text>{quizData.classLevel}</Text>
+        <Text>{classLevel}</Text>
         </View>
         <View style={styles.textholder}>
         <Text style={styles.subtitle}>Subject & Topic</Text>
-        <Text>{quizData.subject} - {quizData.topics[0]?.name} </Text>
+        <Text>{subjectName || "--"} - {topicName}</Text>
         </View>
         <View style={styles.textholder}>
         <Text style={styles.subtitle}>Question Type</Text>
         <Text>
-          {quizData.quiztype === "mcq"
+          {(quizData.quizType || quizData.type || "").toLowerCase() === "mcq"
             ? "Multiple Choice"
             : "Structural Questions"}
         </Text>

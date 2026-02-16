@@ -5,7 +5,10 @@ import React from 'react';
 import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
+import { CurriculumProvider } from '../contexts/CurriculumContext.jsx';
+import { LevelProgressProvider } from '../contexts/LevelProgressContext.jsx';
 import { QuizGenerationProvider } from '../contexts/QuizgenerationContext.jsx';
+import { QuizSessionProvider } from '../contexts/QuizSessionContext.jsx';
 import AppLogoPages from '../src/components/AppLogoPages.jsx';
 import Username from '../src/components/Username.jsx';
 import { colors } from '../theme/colors.jsx';
@@ -63,7 +66,7 @@ export default function RootLayout() {
       checkSession();
       const interval = setInterval(checkSession, 60 * 1000); // check every minute
       return () => clearInterval(interval);
-    }, []);
+    }, [logout, navigation, verifySession]);
 
     if (isLoading) return null; // wait until auth state is loaded
 
@@ -94,7 +97,6 @@ export default function RootLayout() {
               style={[
                 styles.link,
                 {
-                  backgroundColor: colors.red,
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 12,
@@ -125,8 +127,11 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <QuizGenerationProvider>
-        <Drawer
+      <CurriculumProvider>
+        <QuizGenerationProvider>
+          <LevelProgressProvider>
+            <QuizSessionProvider>
+            <Drawer
           screenOptions={({ navigation }) => ({
             headerShown: true,
             headerTitle: () => <AppLogoPages color={colors.black} />,
@@ -166,8 +171,11 @@ export default function RootLayout() {
             name="settings"
             options={{ title: 'Settings' }}
           />
-        </Drawer>
-      </QuizGenerationProvider>
+            </Drawer>
+            </QuizSessionProvider>
+          </LevelProgressProvider>
+        </QuizGenerationProvider>
+      </CurriculumProvider>
     </AuthProvider>
   );
 }
