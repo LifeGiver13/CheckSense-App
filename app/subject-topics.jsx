@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,6 +13,7 @@ import {
 
 import { useCurriculum } from "../contexts/CurriculumContext.jsx";
 import { useQuizGeneration } from "../contexts/QuizgenerationContext.jsx";
+import { useQuizSession } from "../contexts/QuizSessionContext.jsx";
 import { colors } from "../theme/colors.jsx";
 
 const DURATIONS = [
@@ -19,28 +21,138 @@ const DURATIONS = [
   { label: "Medium (15 questions | 15-20 min)", value: "medium" },
   { label: "Long (20 questions | 20-40 min)", value: "long" },
 ];
+const MAX_SUBTOPICS_TO_RENDER = 20;
+
+const getSubjectName = (subject) => {
+  if (typeof subject === "string") return subject;
+  if (subject && typeof subject === "object") return String(subject.name || "").trim();
+  return "";
+};
+
+const getClassLevel = ({ classLevel, subject } = {}) => {
+  const direct = String(classLevel || "").trim();
+  if (direct) return direct;
+  if (subject && typeof subject === "object") {
+    return String(subject.classLevel || "").trim();
+  }
+  return "";
+};
+
+const resolveParam = (value) => (Array.isArray(value) ? value[0] : value);
 
 export default function SubjectTopics() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { getTopics } = useCurriculum();
+  const { getTopics, getCachedTopics } = useCurriculum();
+  const { fetchAttemptById, fetchQuizById } = useQuizSession();
   const { setQuizConfig } = useQuizGeneration();
-  const subject = Array.isArray(params.subject) ? params.subject[0] : params.subject;
-  const classLevel = Array.isArray(params.classLevel)
-    ? params.classLevel[0]
-    : params.classLevel;
+  const subjectParam = resolveParam(params.subject);
+  const classLevelParam = resolveParam(params.classLevel);
+  const attemptIdParam = resolveParam(params.attemptId);
+  const quizIdParam = resolveParam(params.quizId);
 
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDurations, setSelectedDurations] = useState({});
+  const [resolvedSubject, setResolvedSubject] = useState(
+    String(subjectParam || "").trim()
+  );
+  const [resolvedClassLevel, setResolvedClassLevel] = useState(
+    String(classLevelParam || "").trim()
+  );
+  const [resolvingSource, setResolvingSource] = useState(false);
 
   useEffect(() => {
-    if (!subject || !classLevel) return;
+    let isCancelled = false;
+
+    const resolveSource = async () => {
+      const directSubject = String(subjectParam || "").trim();
+      const directClassLevel = String(classLevelParam || "").trim();
+      if (directSubject && directClassLevel) {
+        setResolvedSubject(directSubject);
+        setResolvedClassLevel(directClassLevel);
+        return;
+      }
+
+      if (!attemptIdParam && !quizIdParam) return;
+
+      setResolvingSource(true);
+      try {
+        let quizData = null;
+        let attemptData = null;
+
+        if (quizIdParam) {
+          quizData = await fetchQuizById(quizIdParam);
+        }
+
+        if (!quizData && attemptIdParam) {
+          attemptData = await fetchAttemptById(attemptIdParam);
+          if (attemptData?.quizId) {
+            quizData = await fetchQuizById(attemptData.quizId);
+          }
+        }
+
+        const subjectFromData =
+          getSubjectName(quizData?.subject) || getSubjectName(attemptData?.subject);
+        const classLevelFromData =
+          getClassLevel({
+            classLevel: quizData?.classLevel,
+            subject: quizData?.subject,
+          }) ||
+          getClassLevel({
+            classLevel: attemptData?.classLevel,
+            subject: attemptData?.subject,
+          });
+
+        if (!isCancelled) {
+          if (subjectFromData) setResolvedSubject(subjectFromData);
+          if (classLevelFromData) setResolvedClassLevel(classLevelFromData);
+        }
+      } catch (_err) {
+        if (!isCancelled) {
+          Alert.alert("Error", "Failed to resolve subject details.");
+        }
+      } finally {
+        if (!isCancelled) {
+          setResolvingSource(false);
+        }
+      }
+    };
+
+    resolveSource();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    subjectParam,
+    classLevelParam,
+    attemptIdParam,
+    quizIdParam,
+    fetchAttemptById,
+    fetchQuizById,
+  ]);
+
+  useEffect(() => {
+    if (!resolvedSubject || !resolvedClassLevel) {
+      setTopics([]);
+      setLoading(false);
+      return;
+    }
 
     const fetchTopics = async () => {
       setLoading(true);
       try {
-        const data = await getTopics({ subject, classLevel });
+        const cached = getCachedTopics({
+          subject: resolvedSubject,
+          classLevel: resolvedClassLevel,
+        });
+        const data = cached.length
+          ? cached
+          : await getTopics({
+              subject: resolvedSubject,
+              classLevel: resolvedClassLevel,
+            });
         const validTopics = (data || []).filter(
           (topic) => Array.isArray(topic.subtopics) && topic.subtopics.length > 0
         );
@@ -54,10 +166,11 @@ export default function SubjectTopics() {
     };
 
     fetchTopics();
-  }, [subject, classLevel, getTopics]);
+  }, [resolvedSubject, resolvedClassLevel, getTopics, getCachedTopics]);
 
   const handleDurationSelect = (topicName, subtopicName, duration) => {
     if (!duration) return;
+    if (!resolvedSubject || !resolvedClassLevel) return;
 
     const selectedKey = `${topicName}-${subtopicName || "all"}`;
     setSelectedDurations((prev) => ({
@@ -83,8 +196,8 @@ export default function SubjectTopics() {
     ];
 
     setQuizConfig({
-      classLevel,
-      subject,
+      classLevel: resolvedClassLevel,
+      subject: resolvedSubject,
       topic: topicName,
       topics: payload,
       duration,
@@ -97,12 +210,12 @@ export default function SubjectTopics() {
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.subjectTitle}>{subject}</Text>
+        <Text style={styles.subjectTitle}>{resolvedSubject || "Subject"}</Text>
         <Text style={styles.headerCaption}>Choose a topic and duration</Text>
         <View style={styles.metaRow}>
           <View style={styles.metaChip}>
             <Text style={styles.metaChipLabel}>Class</Text>
-            <Text style={styles.metaChipValue}>{classLevel}</Text>
+            <Text style={styles.metaChipValue}>{resolvedClassLevel || "--"}</Text>
           </View>
           <View style={styles.metaChip}>
             <Text style={styles.metaChipLabel}>Topics</Text>
@@ -110,11 +223,20 @@ export default function SubjectTopics() {
           </View>
         </View>
       </View>
-
-      {loading ? (
+      <Pressable onPress={() => router.push('/browse-subjects')}>
+        <Text style={styles.emptyCard}>Browse other Subjects </Text>
+      </Pressable>
+      {resolvingSource || loading ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={colors.secondary} />
           <Text style={styles.loadingText}>Loading topic suggestions...</Text>
+        </View>
+      ) : !resolvedSubject || !resolvedClassLevel ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.emptyTitle}>Subject Details Missing</Text>
+          <Text style={styles.emptyText}>
+            Please reopen this page from Browse Subjects or Results.
+          </Text>
         </View>
       ) : topics.length === 0 ? (
         <View style={styles.emptyCard}>
@@ -154,7 +276,7 @@ export default function SubjectTopics() {
               </View>
             </View>
 
-            {topic.subtopics.map((subtopic) => (
+            {topic.subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER).map((subtopic) => (
               <View key={subtopic} style={styles.subtopicContainer}>
                 <Text style={styles.subtopicTitle}>{subtopic}</Text>
                 <View style={styles.pickerWrap}>
@@ -177,6 +299,11 @@ export default function SubjectTopics() {
                 </View>
               </View>
             ))}
+            {topic.subtopics.length > MAX_SUBTOPICS_TO_RENDER && (
+              <Text style={styles.subtopicHint}>
+                Showing first {MAX_SUBTOPICS_TO_RENDER} subtopics for performance.
+              </Text>
+            )}
 
             <View style={styles.objectiveBox}>
               <Text style={styles.objectiveLabel}>Learning Objective</Text>
@@ -257,6 +384,7 @@ const styles = StyleSheet.create({
     borderColor: "#dbe7ff",
     backgroundColor: colors.white,
     padding: 16,
+    marginBottom: 20,
   },
   emptyTitle: {
     fontSize: 17,

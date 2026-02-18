@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AppState, StyleSheet, Text, View } from "react-native";
+import { Alert, AppState, StyleSheet, Text, View } from "react-native";
 
 import { useQuizGeneration } from "../contexts/QuizgenerationContext";
 import { colors } from "../theme/colors";
@@ -21,6 +21,7 @@ export default function QuizGenerating() {
   const [displayConfig, setDisplayConfig] = useState(currentQuizConfig || null);
   const lastProcessedConfigKeyRef = useRef("");
   const inFlightConfigKeyRef = useRef("");
+  const attemptsByConfigRef = useRef({});
 
   useEffect(() => {
     if (currentQuizConfig) {
@@ -78,9 +79,26 @@ export default function QuizGenerating() {
       inFlightConfigKeyRef.current = configKey;
 
       (async () => {
-        const quizId = await createQuiz();
+        const attempts = attemptsByConfigRef.current[configKey] || 0;
+        let quizId = null;
+        let currentAttempts = attempts;
+
+        while (currentAttempts < 3 && !quizId) {
+          quizId = await createQuiz();
+          if (quizId) break;
+
+          currentAttempts += 1;
+          attemptsByConfigRef.current[configKey] = currentAttempts;
+          if (currentAttempts < 3) {
+            await new Promise((resolve) => setTimeout(resolve, 900));
+          }
+        }
+
         if (quizId) {
           lastProcessedConfigKeyRef.current = configKey;
+          attemptsByConfigRef.current[configKey] = 0;
+        } else if (currentAttempts >= 3) {
+          Alert.alert("Error", "Failed to generate quiz. Please try again.");
         }
         inFlightConfigKeyRef.current = "";
       })();

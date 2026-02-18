@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Picker } from "@react-native-picker/picker";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback } from "react";
 import {
     Pressable,
     ScrollView,
@@ -44,18 +44,36 @@ export default function QuizScreen() {
     loading,
   } = useQuizSession();
 
-  useEffect(() => {
-    if (resolvedAttemptId) loadSession(resolvedAttemptId);
-  }, [resolvedAttemptId, loadSession]);
+  useFocusEffect(
+    useCallback(() => {
+      if (resolvedAttemptId) {
+        loadSession(resolvedAttemptId);
+      }
+    }, [resolvedAttemptId, loadSession])
+  );
 
   const isCurrentAttemptLoaded =
     !!attempt && String(attempt.id) === String(resolvedAttemptId);
 
-  if (loading || !quiz || !isCurrentAttemptLoaded) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <Feather name="loader" size={48} color={colors.primaryDark} />
         <Text style={{ marginTop: 12 }}>Loading quiz...</Text>
+      </View>
+    );
+  }
+
+  if (!resolvedAttemptId || !attempt || !quiz || !isCurrentAttemptLoaded) {
+    return (
+      <View style={styles.center}>
+        <Text>Failed to load quiz session.</Text>
+        <Pressable
+          style={[styles.btnNav, { marginTop: 12 }]}
+          onPress={() => resolvedAttemptId && loadSession(resolvedAttemptId)}
+        >
+          <Text style={styles.btn}>Retry</Text>
+        </Pressable>
       </View>
     );
   }

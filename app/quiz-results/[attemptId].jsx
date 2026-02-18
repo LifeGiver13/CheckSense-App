@@ -1,18 +1,12 @@
 import { Feather } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect } from "react";
+import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
+import { useCallback } from "react";
 import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useAuth } from "../../contexts/AuthContext";
 import { useLevelProgress } from "../../contexts/LevelProgressContext";
 import { useQuizSession } from "../../contexts/QuizSessionContext";
 import QuizAction from "../../src/components/QuizAction";
 import { colors } from "../../theme/colors";
-
-const getSubjectName = (subject) => {
-  if (typeof subject === "string") return subject;
-  if (subject && typeof subject === "object") return String(subject.name || "").trim();
-  return "";
-};
 
 export default function QuizResults() {
   const router = useRouter();
@@ -22,23 +16,38 @@ export default function QuizResults() {
   const { isLevelingUp, continueLevelUp, getNextLevelFromSession } = useLevelProgress();
   const { attempt, quiz, loading, loadSession, currentConfig } = useQuizSession();
 
-  useEffect(() => {
-    if (!resolvedAttemptId) return;
-
-    const needsLoad = !attempt || String(attempt.id) !== String(resolvedAttemptId);
-    if (needsLoad) {
-      loadSession(resolvedAttemptId);
-    }
-  }, [resolvedAttemptId, attempt, loadSession]);
+  useFocusEffect(
+    useCallback(() => {
+      if (resolvedAttemptId) {
+        loadSession(resolvedAttemptId);
+      }
+    }, [resolvedAttemptId, loadSession])
+  );
 
   const isCurrentAttemptLoaded =
     !!attempt && String(attempt.id) === String(resolvedAttemptId);
 
-  if (loading || !attempt || !quiz || !isCurrentAttemptLoaded) {
+  if (loading) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={colors.primaryDark} />
         <Text style={{ marginTop: 12 }}>Loading results...</Text>
+      </View>
+    );
+  }
+
+  if (!resolvedAttemptId || !attempt || !quiz || !isCurrentAttemptLoaded) {
+    return (
+      <View style={styles.center}>
+        <Text>Failed to load quiz results.</Text>
+        <Pressable
+          style={[styles.actionBtn2, { marginTop: 12, padding: 12 }]}
+          onPress={() => resolvedAttemptId && loadSession(resolvedAttemptId)}
+        >
+          <Text style={{ color: colors.white, textAlign: "center", fontWeight: "600" }}>
+            Retry
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -53,13 +62,6 @@ export default function QuizResults() {
     currentConfig,
     passed,
   });
-
-  const subjectName = getSubjectName(quiz.subject) || getSubjectName(attempt.subject) || "";
-  const classLevel =
-    quiz.classLevel ||
-    (quiz.subject && typeof quiz.subject === "object" ? quiz.subject.classLevel : "") ||
-    attempt.classLevel ||
-    "";
 
   const formatTime = (sec) => {
     const m = Math.floor(sec / 60);
@@ -200,8 +202,7 @@ export default function QuizResults() {
             router.push({
               pathname: "/subject-topics",
               params: {
-                subject: subjectName,
-                classLevel,
+                attemptId: resolvedAttemptId,
               },
             })
           }

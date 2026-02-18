@@ -57,6 +57,25 @@ const parseMetaObject = (value) => {
   }
 };
 
+const toTopicsArray = (value) => {
+  if (Array.isArray(value)) return value;
+  if (!value) return [];
+
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === "object") return [parsed];
+      return [value];
+    } catch (_err) {
+      return [value];
+    }
+  }
+
+  if (typeof value === "object") return [value];
+  return [];
+};
+
 const normalizeTopics = (topics = []) => {
   if (!Array.isArray(topics)) return [];
 
@@ -190,28 +209,48 @@ export function LevelProgressProvider({ children }) {
       }
 
       const focusTopicName = String(currentConfig?.topic || "").trim();
-      let topicPool = normalizeTopics(
-        currentConfig?.topics || quiz?.topics || attempt?.topic || attempt?.topics || []
-      );
+      const sourceTopicCollections = [
+        currentConfig?.topics,
+        quiz?.topics,
+        attempt?.topic,
+        attempt?.topics,
+      ];
+      const firstNonEmptyTopics =
+        sourceTopicCollections.find((entry) => toTopicsArray(entry).length > 0) || [];
+
+      let topicPool = normalizeTopics(toTopicsArray(firstNonEmptyTopics));
 
       let focusTopic = pickFocusTopic(topicPool, focusTopicName);
 
       if (!focusTopic) {
-        const fetchedTopics = await getTopics({
-          classLevel: resolvedClassLevel,
-          subject: resolvedSubject,
-        });
+        try {
+          const fetchedTopics = await getTopics({
+            classLevel: resolvedClassLevel,
+            subject: resolvedSubject,
+          });
 
-        topicPool = (fetchedTopics || []).map((topic) => ({
-          name: String(topic?.name || "").trim(),
-          description: String(topic?.generalObjective || "").trim(),
-          subtopic: Array.isArray(topic?.subtopics) ? topic.subtopics : [],
-        }));
-        focusTopic = pickFocusTopic(topicPool, focusTopicName);
+          topicPool = (fetchedTopics || []).map((topic) => ({
+            name: String(topic?.name || "").trim(),
+            description: String(topic?.generalObjective || "").trim(),
+            subtopic: Array.isArray(topic?.subtopics) ? topic.subtopics : [],
+          }));
+          focusTopic = pickFocusTopic(topicPool, focusTopicName);
+        } catch (_err) {
+          // Keep going with local fallback below.
+        }
       }
 
       if (!focusTopic) {
-        return { ok: false, error: "Could not prepare level-up topic data." };
+        const fallbackName =
+          focusTopicName ||
+          String(topicPool?.[0]?.name || "").trim() ||
+          "General Review";
+
+        focusTopic = {
+          name: fallbackName,
+          description: "",
+          subtopic: [],
+        };
       }
 
       const compactTopic = toCompactTopic(focusTopic);

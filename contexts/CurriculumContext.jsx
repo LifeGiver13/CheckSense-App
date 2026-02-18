@@ -6,6 +6,12 @@ const CurriculumContext = createContext(null);
 const toCacheKey = (value = "") =>
   String(value).trim().toLowerCase();
 
+const buildSubjectsCacheKey = (classLevel, name = "") =>
+  `${toCacheKey(classLevel)}::${toCacheKey(name)}`;
+
+const buildTopicsCacheKey = (classLevel, subject) =>
+  `${toCacheKey(classLevel)}::${toCacheKey(subject)}`;
+
 const normalizeTopic = (topic = {}) => {
   const rawSubtopics = Array.isArray(topic?.subtopics)
     ? topic.subtopics
@@ -52,7 +58,7 @@ export function CurriculumProvider({ children }) {
   const getSubjects = useCallback(async ({ classLevel, name = "", force = false } = {}) => {
     if (!classLevel) return [];
 
-    const cacheKey = `${toCacheKey(classLevel)}::${toCacheKey(name)}`;
+    const cacheKey = buildSubjectsCacheKey(classLevel, name);
     if (!force && subjectsCacheRef.current[cacheKey]) {
       return subjectsCacheRef.current[cacheKey];
     }
@@ -79,7 +85,7 @@ export function CurriculumProvider({ children }) {
   const getTopics = useCallback(async ({ classLevel, subject, force = false } = {}) => {
     if (!classLevel || !subject) return [];
 
-    const cacheKey = `${toCacheKey(classLevel)}::${toCacheKey(subject)}`;
+    const cacheKey = buildTopicsCacheKey(classLevel, subject);
     if (!force && topicsCacheRef.current[cacheKey]) {
       return topicsCacheRef.current[cacheKey];
     }
@@ -104,6 +110,12 @@ export function CurriculumProvider({ children }) {
 
     topicsCacheRef.current[cacheKey] = topics;
     return topics;
+  }, []);
+
+  const getCachedTopics = useCallback(({ classLevel, subject } = {}) => {
+    if (!classLevel || !subject) return [];
+    const cacheKey = buildTopicsCacheKey(classLevel, subject);
+    return topicsCacheRef.current[cacheKey] || [];
   }, []);
 
   const getSubjectsWithTopicCounts = useCallback(
@@ -156,10 +168,17 @@ export function CurriculumProvider({ children }) {
     () => ({
       getSubjects,
       getTopics,
+      getCachedTopics,
       getSubjectsWithTopicCounts,
       clearCurriculumCache,
     }),
-    [getSubjects, getTopics, getSubjectsWithTopicCounts, clearCurriculumCache]
+    [
+      getSubjects,
+      getTopics,
+      getCachedTopics,
+      getSubjectsWithTopicCounts,
+      clearCurriculumCache,
+    ]
   );
 
   return (

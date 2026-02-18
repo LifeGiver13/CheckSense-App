@@ -2,9 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
 import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -16,13 +17,14 @@ import { colors } from "../theme/colors.jsx";
 
 export default function BrowseSubjects() {
     const router = useRouter();
-    const { getSubjectsWithTopicCounts } = useCurriculum();
+    const { getSubjects, getTopics, getCachedTopics } = useCurriculum();
 
     const [classLevel, setClassLevel] = useState("");
     const [userSubjects, setUserSubjects] = useState([]);
     const [selectedSubject, setSelectedSubject] = useState("");
-    const [subjectsWithTopics, setSubjectsWithTopics] = useState([]);
+    const [subjects, setSubjects] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [openingSubject, setOpeningSubject] = useState("");
 
     // Load user profile
     useEffect(() => {
@@ -39,10 +41,6 @@ export default function BrowseSubjects() {
                 setClassLevel(user?.profile?.defaultClass || "");
                 setUserSubjects(subjects);
 
-                // Default selectedSubject to first user subject
-                if (subjects.length) {
-                    setSelectedSubject(subjects[0]);
-                }
             } catch (_err) {
                 setClassLevel("");
                 setUserSubjects([]);
@@ -52,27 +50,72 @@ export default function BrowseSubjects() {
         loadUser();
     }, []);
 
-    // Fetch subjects and their topics
+    // Fetch subjects only once per class change
     useEffect(() => {
-        if (!classLevel) return;
+        if (!classLevel) {
+            setSubjects([]);
+            setLoading(false);
+            return;
+        }
 
-        const fetchSubjectsAndTopics = async () => {
+        const fetchSubjects = async () => {
             setLoading(true);
             try {
-                const subjectsWithCounts = await getSubjectsWithTopicCounts({
-                    classLevel,
-                    selectedSubject,
-                });
-                setSubjectsWithTopics(subjectsWithCounts);
+                const data = await getSubjects({ classLevel });
+                // const allowed = new Set(userSubjects);
+                // const filtered = (data || []).filter((item) => {
+                //     if (!item?.name) return false;
+                //     if (!allowed.size) return true;
+                //     return allowed.has(item.name);
+                // });
+                setSubjects(data || []);
             } catch (e) {
-                console.error("Failed to load subjects/topics", e);
+                console.error("Failed to load subjects", e);
             } finally {
                 setLoading(false);
             }
         };
 
-        fetchSubjectsAndTopics();
-    }, [classLevel, selectedSubject, getSubjectsWithTopicCounts]);
+        fetchSubjects();
+    }, [classLevel, userSubjects, getSubjects])
+
+    const visibleSubjects = useMemo(() => {
+        if (!selectedSubject) {
+            return subjects;
+        }
+
+        if (selectedSubject === "__MY__") {
+            const allowed = new Set(userSubjects);
+            return subjects.filter((item) => allowed.has(item.name));
+        }
+
+        return subjects.filter((item) => item.name === selectedSubject);
+    }, [subjects, selectedSubject, userSubjects]);
+
+
+    const handleOpenSubject = async (subjectName) => {
+        if (!classLevel || !subjectName) return;
+
+        setOpeningSubject(subjectName);
+        try {
+            const cached = getCachedTopics({ classLevel, subject: subjectName });
+            if (!cached.length) {
+                await getTopics({ classLevel, subject: subjectName });
+            }
+
+            router.push({
+                pathname: "/subject-topics",
+                params: {
+                    subject: subjectName,
+                    classLevel,
+                },
+            });
+        } catch (_err) {
+            Alert.alert("Error", "Failed to open this subject.");
+        } finally {
+            setOpeningSubject("");
+        }
+    };
 
     return (
         <ScrollView contentContainerStyle={styles.container}>
@@ -103,40 +146,54 @@ export default function BrowseSubjects() {
                 style={styles.picker}
             >
                 <Picker.Item label="All subjects" value="" />
-                {userSubjects.map((s) => (
-                    <Picker.Item key={s} label={s} value={s} />
-                ))}
+                <Picker.Item label="My subjects" value="__MY__" />
+                {/* {subjects.map((s) => (
+                    <Picker.Item key={s.name} label={s.name} value={s.name} />
+                ))} */}
             </Picker>
+
 
             {/* Content */}
             {loading ? (
                 <ActivityIndicator size="large" color={colors.secondary} />
             ) : (
-                subjectsWithTopics
-                    .filter((s) => s.topicCount > 0)
-                    .map((subject) => (
-                        <Pressable
-                            key={subject.id}
-                            style={styles.card}
-                            onPress={() =>
-                                router.push({
-                                    pathname: "/subject-topics",
-                                    params: {
-                                        subject: subject.name,
-                                        classLevel,
-                                    },
-                                })
-                            }
-                        >
-                            <View style={styles.cardHeader}>
-                                <Feather name="book" size={22} color={colors.secondary} />
-                                <Text style={styles.cardTitle}>{subject.name}</Text>
-                            </View>
+                visibleSubjects
+                    .map((subject) => {
+                        const cachedTopics = getCachedTopics({
+                            classLevel,
+                            subject: subject.name,
+                        });
+                        const topicCount = cachedTopics.filter(
+                            (topic) =>
+                                Array.isArray(topic.subtopics) && topic.subtopics.length > 0
+                        ).length;
 
-                            <Text style={styles.meta}>Class: {classLevel}</Text>
-                            <Text style={styles.meta}>Topics: {subject.topicCount}</Text>
-                        </Pressable>
-                    ))
+                        return (
+                            <Pressable
+                                key={subject.id || subject.name}
+                                style={styles.card}
+                                onPress={() => handleOpenSubject(subject.name)}
+                                disabled={openingSubject === subject.name}
+                            >
+                                <View style={styles.cardHeader}>
+                                    <Feather name="book" size={22} color={colors.secondary} />
+                                    <Text style={styles.cardTitle}>{subject.name}</Text>
+                                </View>
+
+                                <Text style={styles.meta}>Class: {classLevel}</Text>
+                                <Text style={styles.meta}>
+                                    Topics: {topicCount || "Tap to load"}
+                                </Text>
+                                {openingSubject === subject.name && (
+                                    <ActivityIndicator
+                                        size="small"
+                                        color={colors.secondary}
+                                        style={{ marginTop: 8 }}
+                                    />
+                                )}
+                            </Pressable>
+                        );
+                    })
             )}
         </ScrollView>
     );

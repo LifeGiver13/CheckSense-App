@@ -61,7 +61,7 @@ export default function RootLayout() {
           Alert.alert("Session expired", "Please login again");
           await logout();
           navigation.navigate('login');
-        }
+        } 
       };
       checkSession();
       const interval = setInterval(checkSession, 60 * 1000); // check every minute
