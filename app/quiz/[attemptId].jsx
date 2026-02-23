@@ -19,6 +19,37 @@ const getSubjectName = (subject) => {
   return "";
 };
 
+const toPlainText = (value) => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object") {
+    return String(
+      value.text || value.label || value.name || value.value || value.answer || ""
+    ).trim();
+  }
+  return "";
+};
+
+const getQuestionText = (question = {}) =>
+  toPlainText(question?.question || question?.prompt || question?.text);
+
+const getQuestionAnswer = (question = {}) =>
+  toPlainText(
+    question?.answer ??
+      question?.correctAnswer ??
+      question?.correct_option ??
+      question?.correct
+  );
+
+const getQuestionExplanation = (question = {}) =>
+  toPlainText(question?.explanation || question?.reason);
+
+const getQuestionHints = (question = {}) =>
+  Array.isArray(question?.hints) ? question.hints.map(toPlainText).filter(Boolean) : [];
+
+const getQuestionOptions = (question = {}) =>
+  Array.isArray(question?.options) ? question.options.map(toPlainText).filter(Boolean) : [];
+
 export default function QuizScreen() {
   const { attemptId } = useLocalSearchParams();
   const resolvedAttemptId = Array.isArray(attemptId) ? attemptId[0] : attemptId;
@@ -42,6 +73,7 @@ export default function QuizScreen() {
     timeLeft,
     isExamMode,
     loading,
+    saving,
   } = useQuizSession();
 
   useFocusEffect(
@@ -87,13 +119,24 @@ export default function QuizScreen() {
     );
   }
 
-  const currentQ = questions[currentQuestion] || questions[0];
   const totalQuestions = questions.length;
-  const progress = ((currentQuestion + 1) / totalQuestions) * 100;
+  const normalizedQuestionIndex = Number(currentQuestion);
+  const safeCurrentQuestion = Number.isFinite(normalizedQuestionIndex)
+    ? Math.min(totalQuestions - 1, Math.max(0, normalizedQuestionIndex))
+    : 0;
+  const currentQ = questions[safeCurrentQuestion] || questions[0];
+  const progress = ((safeCurrentQuestion + 1) / totalQuestions) * 100;
   const isSAQ = String(quiz.quizType || quiz.type || "").toLowerCase() === "saq";
   const subjectName = getSubjectName(quiz.subject) || "--";
   const topicName = quiz.topics?.[0]?.name || "--";
   const resolvedTimeLeft = Number.isFinite(timeLeft) ? timeLeft : 0;
+  const questionText = getQuestionText(currentQ);
+  const questionAnswer = getQuestionAnswer(currentQ);
+  const questionExplanation = getQuestionExplanation(currentQ);
+  const questionHints = getQuestionHints(currentQ);
+  const questionOptions = getQuestionOptions(currentQ);
+  const currentAnswer = answers[safeCurrentQuestion] || "";
+  const currentFeedback = feedback[safeCurrentQuestion];
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -115,19 +158,19 @@ export default function QuizScreen() {
         <View style={[styles.progressBarFill, { width: `${progress}%` }]} />
       </View>
       <Text style={styles.headerProgress}>
-        Question {currentQuestion + 1} of {totalQuestions} ({Math.round(progress)}%)
+        Question {safeCurrentQuestion + 1} of {totalQuestions} ({Math.round(progress)}%)
       </Text>
 
       {/* Question */}
       <View style={styles.questionContainer}>
-        <Text style={{ fontSize: 18, marginBottom: 12 }}>{currentQ.question}</Text>
+        <Text style={{ fontSize: 18, marginBottom: 12 }}>{questionText}</Text>
 
         {/* MCQ Options */}
         {!isSAQ &&
-          currentQ.options?.map((opt, index) => {
-            const isSelected = answers[currentQuestion] === opt;
-            const submitted = feedback[currentQuestion]?.submitted;
-            const isCorrectAnswer = opt === currentQ.answer;
+          questionOptions.map((opt, index) => {
+            const isSelected = currentAnswer === opt;
+            const submitted = currentFeedback?.submitted;
+            const isCorrectAnswer = opt === questionAnswer;
 
             let bgColor = colors.white;
             if (!isExamMode && submitted) {
@@ -159,9 +202,9 @@ export default function QuizScreen() {
         {/* SAQ */}
         {isSAQ && (
           <TextInput
-            value={answers[currentQuestion] || ""}
+            value={currentAnswer}
             onChangeText={setAnswer}
-            editable={!feedback[currentQuestion]?.submitted}
+            editable={!currentFeedback?.submitted}
             multiline
             numberOfLines={5}
             placeholder="Write your answer here..."
@@ -170,12 +213,12 @@ export default function QuizScreen() {
         )}
 
         {/* Feedback */}
-        {!isExamMode && feedback[currentQuestion]?.submitted && (
+        {!isExamMode && currentFeedback?.submitted && (
           <View style={styles.feedbackContainer}>
             <View
               style={[
                 styles.section,
-                feedback[currentQuestion].isCorrect
+                currentFeedback.isCorrect
                   ? styles.correctBg
                   : styles.incorrectBg,
               ]}
@@ -183,39 +226,39 @@ export default function QuizScreen() {
               <Text
                 style={[
                   styles.statusText,
-                  feedback[currentQuestion].isCorrect
+                  currentFeedback.isCorrect
                     ? styles.correctText
                     : styles.incorrectText,
                 ]}
               >
-                {feedback[currentQuestion].isCorrect ? "Correct!" : "Incorrect"}
+                {currentFeedback.isCorrect ? "Correct!" : "Incorrect"}
               </Text>
             </View>
 
             <View style={[styles.section, styles.explanationBg]}>
               <Text style={styles.sectionTitle}>Explanation</Text>
-              <Text style={styles.sectionText}>{currentQ.explanation}</Text>
+              <Text style={styles.sectionText}>{questionExplanation || "--"}</Text>
             </View>
 
-            {!feedback[currentQuestion].isCorrect && (
+            {!currentFeedback.isCorrect && (
               <View style={[styles.section, styles.answerBg]}>
                 <Text style={styles.sectionTitle}>Correct Answer</Text>
-                <Text style={styles.sectionText}>{currentQ.answer}</Text>
+                <Text style={styles.sectionText}>{questionAnswer || "--"}</Text>
               </View>
             )}
           </View>
         )}
 
         {/* Hints */}
-        {!isExamMode && currentQ.hints?.length > 0 && (
+        {!isExamMode && questionHints.length > 0 && (
           <View style={{ marginTop: 12 }}>
-            {currentQ.hints.slice(0, revealedHints[currentQuestion] || 0).map((hint, idx) => (
+            {questionHints.slice(0, revealedHints[safeCurrentQuestion] || 0).map((hint, idx) => (
               <Text key={idx} style={{ color: colors.primaryDark, marginVertical: 4 }}>
                 {idx + 1}. {hint}
               </Text>
             ))}
 
-            {(revealedHints[currentQuestion] || 0) < currentQ.hints.length && (
+            {(revealedHints[safeCurrentQuestion] || 0) < questionHints.length && (
               <Pressable
                 onPress={revealHint}
                 style={{
@@ -244,9 +287,9 @@ export default function QuizScreen() {
 
       {/* Submit Answer button */}
       {!isExamMode &&
-        answers[currentQuestion] &&
-        !feedback[currentQuestion]?.submitted && (
-          <Pressable onPress={submitAnswer} style={styles.btnNav}>
+        currentAnswer &&
+        !currentFeedback?.submitted && (
+          <Pressable onPress={submitAnswer} disabled={saving} style={[styles.btnNav, saving && { opacity: 0.7 }]}>
             <Text style={styles.btn}>Submit Answer</Text>
           </Pressable>
         )}
@@ -255,10 +298,10 @@ export default function QuizScreen() {
       <View style={styles.navRow}>
         <Pressable
           onPress={previousQuestion}
-          disabled={currentQuestion === 0}
+          disabled={safeCurrentQuestion === 0}
           style={{
             padding: 12,
-            backgroundColor: currentQuestion === 0 ? "#eee" : "#ccc",
+            backgroundColor: safeCurrentQuestion === 0 ? "#eee" : "#ccc",
             borderRadius: 8,
           }}
         >
@@ -267,8 +310,11 @@ export default function QuizScreen() {
 
         <View style={styles.pickerContainer}>
           <Picker
-            selectedValue={currentQuestion}
-            onValueChange={setCurrentQuestion}
+            selectedValue={safeCurrentQuestion}
+            onValueChange={(value) => {
+              const nextIndex = Number(value);
+              setCurrentQuestion(Number.isFinite(nextIndex) ? nextIndex : 0);
+            }}
             mode="dropdown"
           >
             {questions.map((_, index) => (
@@ -281,21 +327,25 @@ export default function QuizScreen() {
           </Picker>
         </View>
 
-        {currentQuestion < totalQuestions - 1 ? (
+        {safeCurrentQuestion < totalQuestions - 1 ? (
           <Pressable onPress={nextQuestion} style={styles.btnNav}>
             <Text style={styles.btn}>Next</Text>
           </Pressable>
         ) : (
           <Pressable
+            disabled={saving}
             onPress={async () => {
               const submitted = await submitQuiz();
               if (submitted) {
-                router.replace(`/quiz-results/${resolvedAttemptId}`);
+                const targetAttemptId = String(resolvedAttemptId || attempt?.id || "").trim();
+                if (targetAttemptId) {
+                  router.replace(`/quiz-results/${targetAttemptId}`);
+                }
               }
             }}
-            style={styles.btnNav}
+            style={[styles.btnNav, saving && { opacity: 0.7 }]}
           >
-            <Text style={styles.btn}>Submit</Text>
+            <Text style={styles.btn}>{saving ? "Submitting..." : "Submit"}</Text>
           </Pressable>
         )}
       </View>

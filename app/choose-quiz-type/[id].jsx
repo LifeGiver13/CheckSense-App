@@ -65,7 +65,7 @@ export default function ChooseQuizType() {
 
       if (!attemptId) return;
 
-      router.push(`/quiz/${attemptId}`);
+      router.replace(`/quiz/${attemptId}`);
     } catch (_err) {
       Alert.alert("Error", "Failed to start quiz");
     } finally {
@@ -166,7 +166,7 @@ export default function ChooseQuizType() {
         )}
       </Pressable>
 
-      <Pressable onPress={() => router.push('/arrange-quiz')}>
+      <Pressable onPress={() => router.replace('/arrange-quiz')}>
         <Text style={styles.back}>Change Settings</Text>
       </Pressable>
     </ScrollView>

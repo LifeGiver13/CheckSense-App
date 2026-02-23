@@ -1,11 +1,11 @@
 import { Picker } from "@react-native-picker/picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  FlatList,
   Pressable,
-  ScrollView,
   StyleSheet,
   Text,
   View,
@@ -21,7 +21,8 @@ const DURATIONS = [
   { label: "Medium (15 questions | 15-20 min)", value: "medium" },
   { label: "Long (20 questions | 20-40 min)", value: "long" },
 ];
-const MAX_SUBTOPICS_TO_RENDER = 20;
+const MAX_SUBTOPICS_TO_RENDER = 10;
+const MAX_SUBTOPICS_TO_SEND = 12;
 
 const getSubjectName = (subject) => {
   if (typeof subject === "string") return subject;
@@ -43,41 +44,47 @@ const resolveParam = (value) => (Array.isArray(value) ? value[0] : value);
 export default function SubjectTopics() {
   const router = useRouter();
   const params = useLocalSearchParams();
-  const { getTopics, getCachedTopics } = useCurriculum();
+  const { getTopics, getCachedTopics, getSubjectById } = useCurriculum();
   const { fetchAttemptById, fetchQuizById } = useQuizSession();
   const { setQuizConfig } = useQuizGeneration();
-  const subjectParam = resolveParam(params.subject);
-  const classLevelParam = resolveParam(params.classLevel);
+  const subjectIdParam = resolveParam(params.subjectId);
   const attemptIdParam = resolveParam(params.attemptId);
   const quizIdParam = resolveParam(params.quizId);
 
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDurations, setSelectedDurations] = useState({});
-  const [resolvedSubject, setResolvedSubject] = useState(
-    String(subjectParam || "").trim()
+  const [resolvedSubjectId, setResolvedSubjectId] = useState(
+    String(subjectIdParam || "").trim()
   );
-  const [resolvedClassLevel, setResolvedClassLevel] = useState(
-    String(classLevelParam || "").trim()
-  );
+  const [resolvedSubject, setResolvedSubject] = useState("");
+  const [resolvedClassLevel, setResolvedClassLevel] = useState("");
   const [resolvingSource, setResolvingSource] = useState(false);
+  const [expandedTopic, setExpandedTopic] = useState("");
+  const isNavigatingRef = useRef(false);
 
   useEffect(() => {
     let isCancelled = false;
 
     const resolveSource = async () => {
-      const directSubject = String(subjectParam || "").trim();
-      const directClassLevel = String(classLevelParam || "").trim();
-      if (directSubject && directClassLevel) {
-        setResolvedSubject(directSubject);
-        setResolvedClassLevel(directClassLevel);
-        return;
-      }
-
-      if (!attemptIdParam && !quizIdParam) return;
-
       setResolvingSource(true);
       try {
+        const directSubjectId = String(subjectIdParam || "").trim();
+        if (directSubjectId) {
+          setResolvedSubjectId(directSubjectId);
+          const subjectData = await getSubjectById(directSubjectId);
+          if (!isCancelled) {
+            if (subjectData?.name) setResolvedSubject(String(subjectData.name).trim());
+            if (subjectData?.classLevel) {
+              setResolvedClassLevel(String(subjectData.classLevel).trim());
+            }
+          }
+        }
+
+        if (!attemptIdParam && !quizIdParam) {
+          return;
+        }
+
         let quizData = null;
         let attemptData = null;
 
@@ -103,8 +110,16 @@ export default function SubjectTopics() {
             classLevel: attemptData?.classLevel,
             subject: attemptData?.subject,
           });
+        const subjectIdFromData = String(
+          quizData?.subjectId ||
+            attemptData?.subjectId ||
+            quizData?.subject?.id ||
+            attemptData?.subject?.id ||
+            ""
+        ).trim();
 
         if (!isCancelled) {
+          if (subjectIdFromData) setResolvedSubjectId(subjectIdFromData);
           if (subjectFromData) setResolvedSubject(subjectFromData);
           if (classLevelFromData) setResolvedClassLevel(classLevelFromData);
         }
@@ -125,10 +140,10 @@ export default function SubjectTopics() {
       isCancelled = true;
     };
   }, [
-    subjectParam,
-    classLevelParam,
+    subjectIdParam,
     attemptIdParam,
     quizIdParam,
+    getSubjectById,
     fetchAttemptById,
     fetchQuizById,
   ]);
@@ -150,13 +165,19 @@ export default function SubjectTopics() {
         const data = cached.length
           ? cached
           : await getTopics({
-              subject: resolvedSubject,
-              classLevel: resolvedClassLevel,
-            });
+            subject: resolvedSubject,
+            classLevel: resolvedClassLevel,
+          });
         const validTopics = (data || []).filter(
           (topic) => Array.isArray(topic.subtopics) && topic.subtopics.length > 0
         );
         setTopics(validTopics);
+        setExpandedTopic((prev) => {
+          if (prev && validTopics.some((topic) => topic.name === prev)) {
+            return prev;
+          }
+          return "";
+        });
       } catch (error) {
         console.error("Failed to fetch topics", error);
         Alert.alert("Error", "Failed to load topics");
@@ -171,6 +192,7 @@ export default function SubjectTopics() {
   const handleDurationSelect = (topicName, subtopicName, duration) => {
     if (!duration) return;
     if (!resolvedSubject || !resolvedClassLevel) return;
+    if (isNavigatingRef.current) return;
 
     const selectedKey = `${topicName}-${subtopicName || "all"}`;
     setSelectedDurations((prev) => ({
@@ -181,22 +203,33 @@ export default function SubjectTopics() {
     const topicObj = topics.find((topic) => topic.name === topicName);
     if (!topicObj) return;
 
+    const selectedSubtopics =
+      subtopicName === "" || subtopicName === topicName
+        ? topicObj.subtopics
+          .slice(0, MAX_SUBTOPICS_TO_SEND)
+          .map((subtopic) => String(subtopic || "").trim())
+          .filter(Boolean)
+        : [String(subtopicName || "").trim()].filter(Boolean);
+
+    if (selectedSubtopics.length === 0) {
+      Alert.alert("Error", "No valid subtopics available for this selection.");
+      return;
+    }
+
     const payload = [
       {
         name: topicObj.name,
         description: topicObj.generalObjective || "",
-        subtopic:
-          subtopicName === "" || subtopicName === topicName
-            ? topicObj.subtopics.map((subtopic) => ({
-                name: subtopic,
-                description: "",
-              }))
-            : [{ name: subtopicName, description: "" }],
+        subtopic: selectedSubtopics.map((subtopic) => ({
+          name: subtopic,
+          description: "",
+        })),
       },
     ];
 
     setQuizConfig({
       classLevel: resolvedClassLevel,
+      subjectId: resolvedSubjectId || null,
       subject: resolvedSubject,
       topic: topicName,
       topics: payload,
@@ -204,117 +237,153 @@ export default function SubjectTopics() {
       quizType: "mcq",
     });
 
-    router.push("/quiz-generating");
+    isNavigatingRef.current = true;
+    router.replace("/quiz-generating");
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.subjectTitle}>{resolvedSubject || "Subject"}</Text>
-        <Text style={styles.headerCaption}>Choose a topic and duration</Text>
-        <View style={styles.metaRow}>
-          <View style={styles.metaChip}>
-            <Text style={styles.metaChipLabel}>Class</Text>
-            <Text style={styles.metaChipValue}>{resolvedClassLevel || "--"}</Text>
-          </View>
-          <View style={styles.metaChip}>
-            <Text style={styles.metaChipLabel}>Topics</Text>
-            <Text style={styles.metaChipValue}>{topics.length}</Text>
-          </View>
-        </View>
-      </View>
-      <Pressable onPress={() => router.push('/browse-subjects')}>
-        <Text style={styles.emptyCard}>Browse other Subjects </Text>
-      </Pressable>
-      {resolvingSource || loading ? (
-        <View style={styles.loadingBox}>
-          <ActivityIndicator size="large" color={colors.secondary} />
-          <Text style={styles.loadingText}>Loading topic suggestions...</Text>
-        </View>
-      ) : !resolvedSubject || !resolvedClassLevel ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Subject Details Missing</Text>
-          <Text style={styles.emptyText}>
-            Please reopen this page from Browse Subjects or Results.
-          </Text>
-        </View>
-      ) : topics.length === 0 ? (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>No Topics Available</Text>
-          <Text style={styles.emptyText}>
-            Try another subject or class level to see available subtopics.
-          </Text>
-        </View>
-      ) : (
-        topics.map((topic, topicIndex) => (
-          <View key={topic.id || topic.name} style={styles.topicCard}>
-            <View style={styles.topicHeader}>
-              <Text style={styles.topicTag}>Topic {topicIndex + 1}</Text>
-              <Text style={styles.topicName}>{topic.name}</Text>
-            </View>
-
-            <View style={styles.subtopicContainer}>
-              <Text style={styles.subtopicTitle}>All Subtopics</Text>
-              <Text style={styles.subtopicHint}>
-                Generate one quiz covering the full topic.
-              </Text>
-              <View style={styles.pickerWrap}>
-                <Picker
-                  selectedValue={selectedDurations[`${topic.name}-all`] || ""}
-                  onValueChange={(value) => handleDurationSelect(topic.name, "", value)}
-                  style={styles.picker}
-                >
-                  <Picker.Item label="Select duration..." value="" />
-                  {DURATIONS.map((duration) => (
-                    <Picker.Item
-                      key={duration.value}
-                      label={duration.label}
-                      value={duration.value}
-                    />
-                  ))}
-                </Picker>
+    <FlatList
+      data={
+        resolvingSource || loading || !resolvedSubject || !resolvedClassLevel
+          ? []
+          : topics
+      }
+      keyExtractor={(topic, index) => topic.id || topic.name || String(index)}
+      initialNumToRender={3}
+      maxToRenderPerBatch={3}
+      windowSize={5}
+      removeClippedSubviews
+      contentContainerStyle={styles.container}
+      ListHeaderComponent={
+        <>
+          <View style={styles.header}>
+            <Text style={styles.subjectTitle}>{resolvedSubject || "Subject"}</Text>
+            <Text style={styles.headerCaption}>Choose a topic and duration</Text>
+            <View style={styles.metaRow}>
+              <View style={styles.metaChip}>
+                <Text style={styles.metaChipLabel}>Class</Text>
+                <Text style={styles.metaChipValue}>{resolvedClassLevel || "--"}</Text>
+              </View>
+              <View style={styles.metaChip}>
+                <Text style={styles.metaChipLabel}>Topics</Text>
+                <Text style={styles.metaChipValue}>{topics.length}</Text>
               </View>
             </View>
+          </View>
+          <Pressable style={styles.emptyCard} onPress={() => router.push("/browse-subjects")}>
+            <Text style={styles.emptyText}>Browse other subjects</Text>
+          </Pressable>
+        </>
+      }
+      ListEmptyComponent={
+        resolvingSource || loading ? (
+          <View style={styles.loadingBox}>
+            <ActivityIndicator size="large" color={colors.secondary} />
+            <Text style={styles.loadingText}>Loading topic suggestions...</Text>
+          </View>
+        ) : !resolvedSubject || !resolvedClassLevel ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>Subject Details Missing</Text>
+            <Text style={styles.emptyText}>
+              Please reopen this page from Browse Subjects or Results.
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyTitle}>No Topics Available</Text>
+            <Text style={styles.emptyText}>
+              Try another subject or class level to see available subtopics.
+            </Text>
+          </View>
+        )
+      }
+      renderItem={({ item: topic, index: topicIndex }) => {
+        const isExpanded = expandedTopic === topic.name;
+        return (
+          <View style={styles.topicCard}>
+            <View style={styles.topicHeaderRow}>
+              <View style={styles.topicHeader}>
+                <Text style={styles.topicTag}>Topic {topicIndex + 1}</Text>
+                <Text style={styles.topicName}>{topic.name}</Text>
 
-            {topic.subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER).map((subtopic) => (
-              <View key={subtopic} style={styles.subtopicContainer}>
-                <Text style={styles.subtopicTitle}>{subtopic}</Text>
-                <View style={styles.pickerWrap}>
-                  <Picker
-                    selectedValue={selectedDurations[`${topic.name}-${subtopic}`] || ""}
-                    onValueChange={(value) =>
-                      handleDurationSelect(topic.name, subtopic, value)
-                    }
-                    style={styles.picker}
-                  >
-                    <Picker.Item label="Select duration..." value="" />
-                    {DURATIONS.map((duration) => (
-                      <Picker.Item
-                        key={duration.value}
-                        label={duration.label}
-                        value={duration.value}
-                      />
-                    ))}
-                  </Picker>
+              </View>
+
+            </View>
+            <View style={styles.btnCont}>
+              <Pressable
+                onPress={() => setExpandedTopic(isExpanded ? "" : topic.name)}
+                style={styles.expandBtn}
+              >
+                <Text style={styles.expandBtnText}>{isExpanded ? "Hide" : "Open"}</Text>
+              </Pressable>
+            </View>
+            {isExpanded && (
+              <>
+                <View style={styles.subtopicContainer}>
+                  <Text style={styles.subtopicTitle}>All Subtopics</Text>
+                  <Text style={styles.subtopicHint}>
+                    Generate one quiz covering the full topic.
+                  </Text>
+                  <View style={styles.pickerWrap}>
+                    <Picker
+                      selectedValue={selectedDurations[`${topic.name}-all`] || ""}
+                      onValueChange={(value) => handleDurationSelect(topic.name, "", value)}
+                      style={styles.picker}
+                    >
+                      <Picker.Item label="Select duration..." value="" />
+                      {DURATIONS.map((duration) => (
+                        <Picker.Item
+                          key={duration.value}
+                          label={duration.label}
+                          value={duration.value}
+                        />
+                      ))}
+                    </Picker>
+                  </View>
                 </View>
-              </View>
-            ))}
-            {topic.subtopics.length > MAX_SUBTOPICS_TO_RENDER && (
-              <Text style={styles.subtopicHint}>
-                Showing first {MAX_SUBTOPICS_TO_RENDER} subtopics for performance.
-              </Text>
-            )}
 
-            <View style={styles.objectiveBox}>
-              <Text style={styles.objectiveLabel}>Learning Objective</Text>
-              <Text style={styles.topicObjective}>
-                {topic.generalObjective || "No objective provided"}
-              </Text>
-            </View>
+                {topic.subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER).map((subtopic) => (
+                  <View key={subtopic} style={styles.subtopicContainer}>
+                    <Text style={styles.subtopicTitle}>{subtopic}</Text>
+                    <View style={styles.pickerWrap}>
+                      <Picker
+                        selectedValue={selectedDurations[`${topic.name}-${subtopic}`] || ""}
+                        onValueChange={(value) =>
+                          handleDurationSelect(topic.name, subtopic, value)
+                        }
+                        style={styles.picker}
+                      >
+                        <Picker.Item label="Select duration..." value="" />
+                        {DURATIONS.map((duration) => (
+                          <Picker.Item
+                            key={duration.value}
+                            label={duration.label}
+                            value={duration.value}
+                          />
+                        ))}
+                      </Picker>
+                    </View>
+                  </View>
+                ))}
+
+                {topic.subtopics.length > MAX_SUBTOPICS_TO_RENDER && (
+                  <Text style={styles.subtopicHint}>
+                    Showing first {MAX_SUBTOPICS_TO_RENDER} subtopics for performance.
+                  </Text>
+                )}
+
+                <View style={styles.objectiveBox}>
+                  <Text style={styles.objectiveLabel}>Learning Objective</Text>
+                  <Text style={styles.topicObjective}>
+                    {topic.generalObjective || "No objective provided"}
+                  </Text>
+                </View>
+              </>
+            )}
           </View>
-        ))
-      )}
-    </ScrollView>
+        );
+      }}
+    />
   );
 }
 
@@ -412,6 +481,28 @@ const styles = StyleSheet.create({
   },
   topicHeader: {
     marginBottom: 8,
+  },
+  topicHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  expandBtn: {
+    borderWidth: 1,
+    borderColor: "#cfe1ff",
+    borderRadius: 999,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    backgroundColor: "#f3f8ff",
+  },
+  btnCont: {
+    marginTop: 10,
+  },
+  expandBtnText: {
+    color: colors.primaryDark,
+    fontWeight: "600",
+    fontSize: 12,
   },
   topicTag: {
     alignSelf: "flex-start",

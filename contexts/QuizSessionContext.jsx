@@ -54,6 +54,28 @@ const inferDuration = (questionCount) => {
 const normalizeText = (value) =>
   String(value ?? "").trim().toLowerCase();
 
+const toPlainText = (value) => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object") {
+    return String(
+      value.text || value.label || value.name || value.value || value.answer || ""
+    ).trim();
+  }
+  return "";
+};
+
+const getQuestionText = (question = {}) =>
+  toPlainText(question?.question || question?.prompt || question?.text);
+
+const getQuestionAnswer = (question = {}) =>
+  toPlainText(
+    question?.answer ??
+      question?.correctAnswer ??
+      question?.correct_option ??
+      question?.correct
+  );
+
 const getSubjectName = (subject) => {
   if (typeof subject === "string") return subject;
   if (subject && typeof subject === "object") {
@@ -304,8 +326,8 @@ export function QuizSessionProvider({ children }) {
     const q = quiz.questions[currentQuestion];
     if (!q) return;
 
-    const userAnswer = normalizeText(answers[currentQuestion]);
-    const correctAnswer = normalizeText(q.answer);
+    const userAnswer = normalizeText(toPlainText(answers[currentQuestion]));
+    const correctAnswer = normalizeText(getQuestionAnswer(q));
 
     setFeedback((prev) => ({
       ...prev,
@@ -346,15 +368,16 @@ export function QuizSessionProvider({ children }) {
     try {
       const questionList = Array.isArray(quiz.questions) ? quiz.questions : [];
       const answersArray = questionList.map((q, index) => ({
-        question: q.question,
-        answer: answers[index] || "",
+        question: getQuestionText(q),
+        answer: toPlainText(answers[index]),
         marksAwarded:
-          normalizeText(answers[index]) === normalizeText(q.answer)
+          normalizeText(toPlainText(answers[index])) ===
+          normalizeText(getQuestionAnswer(q))
             ? 1
             : 0,
       }));
 
-      await fetch(`${API_BASE_URL}/v2/quiz-attempt/${attempt.id}`, {
+      const res = await fetch(`${API_BASE_URL}/v2/quiz-attempt/${attempt.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -365,6 +388,10 @@ export function QuizSessionProvider({ children }) {
           status: "in_progress",
         }),
       });
+
+      if (!res.ok) {
+        throw new Error("Failed to save progress");
+      }
     } finally {
       setSaving(false);
     }
@@ -380,8 +407,9 @@ export function QuizSessionProvider({ children }) {
       const totalQuestions = questionList.length;
 
       const correctCount = questionList.reduce((count, q, index) => {
-        const userAnswer = normalizeText(answers[index]);
-        return userAnswer === normalizeText(q.answer) ? count + 1 : count;
+        const userAnswer = normalizeText(toPlainText(answers[index]));
+        const correctAnswer = normalizeText(getQuestionAnswer(q));
+        return userAnswer === correctAnswer ? count + 1 : count;
       }, 0);
 
       const percentageScore =
@@ -390,15 +418,16 @@ export function QuizSessionProvider({ children }) {
           : 0;
 
       const answersArray = questionList.map((q, index) => ({
-        question: q.question,
-        answer: answers[index] || "",
+        question: getQuestionText(q),
+        answer: toPlainText(answers[index]),
         marksAwarded:
-          normalizeText(answers[index]) === normalizeText(q.answer)
+          normalizeText(toPlainText(answers[index])) ===
+          normalizeText(getQuestionAnswer(q))
             ? 1
             : 0,
       }));
 
-      await fetch(`${API_BASE_URL}/v2/quiz-attempt/${attempt.id}`, {
+      const res = await fetch(`${API_BASE_URL}/v2/quiz-attempt/${attempt.id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -412,6 +441,11 @@ export function QuizSessionProvider({ children }) {
           totalQuestions,
         }),
       });
+
+      if (!res.ok) {
+        const errorJson = await res.json().catch(() => ({}));
+        throw new Error(errorJson?.message || "Failed to submit quiz");
+      }
 
       const updatedAttempt = {
         ...attempt,

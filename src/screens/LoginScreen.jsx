@@ -120,7 +120,7 @@ export default function LoginScreen() {
         </View>
 
         {/* Back to Home */}
-        <Pressable style={styles.backButton} onPress={() => router.push('/index')}>
+        <Pressable style={styles.backButton} onPress={() => router.back()}>
           <Text style={styles.backText}>Back to Home</Text>
         </Pressable>
       </View>

@@ -28,6 +28,9 @@ const CLASSES = [
   "Lower Sixth",
   "Upper Sixth",
 ];
+const MAX_PICKER_ITEMS = 80;
+const MAX_SUBTOPICS_TO_RENDER = 80;
+const MAX_SUBTOPICS_TO_SEND = 120;
 
 export default function ArrangeQuiz() {
   const { user } = useAuth();
@@ -54,6 +57,9 @@ export default function ArrangeQuiz() {
 
   const [quizDuration, setQuizDuration] = useState("");
   const [quizType, setQuizType] = useState("");
+  const visibleSubjects = subjects.slice(0, MAX_PICKER_ITEMS);
+  const visibleTopics = topics.slice(0, MAX_PICKER_ITEMS);
+  const visibleSubtopics = subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER);
 
 
   // Fetch subjects
@@ -122,11 +128,18 @@ export default function ArrangeQuiz() {
     }
 
     // Prepare topics payload
+    const sourceSubtopics = selectedSubtopics.length > 0 ? selectedSubtopics : subtopics;
+    const limitedSubtopics = sourceSubtopics.slice(0, MAX_SUBTOPICS_TO_SEND);
+    if (!limitedSubtopics.length) {
+      Alert.alert("Please select at least one subtopic");
+      return;
+    }
+
     const topicsPayload = [
       {
         name: selectedTopic,
         description: "", // empty for now, can be filled if needed
-        subtopic: (selectedSubtopics.length > 0 ? selectedSubtopics : subtopics).map((st) => ({
+        subtopic: limitedSubtopics.map((st) => ({
           name: st,
           description: "",
         })),
@@ -141,7 +154,7 @@ export default function ArrangeQuiz() {
       quizType,
     });
 
-    router.push("/quiz-generating");
+    router.replace("/quiz-generating");
 
 
   };
@@ -195,10 +208,15 @@ export default function ArrangeQuiz() {
           style={styles.picker}
         >
           <Picker.Item label="Select subject..." value="" />
-          {subjects.map((s) => (
+          {visibleSubjects.map((s) => (
             <Picker.Item key={s.name} label={s.name} value={s.name} />
           ))}
         </Picker>
+      )}
+      {subjects.length > MAX_PICKER_ITEMS && (
+        <Text style={styles.smallHint}>
+          Showing first {MAX_PICKER_ITEMS} subjects for device stability.
+        </Text>
       )}
 
       {/* Topic Picker */}
@@ -212,17 +230,22 @@ export default function ArrangeQuiz() {
           style={styles.picker}
         >
           <Picker.Item label="Select topic..." value="" />
-          {topics.map((t) => (
+          {visibleTopics.map((t) => (
             <Picker.Item key={t.id} label={t.name} value={t.name} />
           ))}
         </Picker>
+      )}
+      {topics.length > MAX_PICKER_ITEMS && (
+        <Text style={styles.smallHint}>
+          Showing first {MAX_PICKER_ITEMS} topics for device stability.
+        </Text>
       )}
 
       {/* Subtopics */}
       {subtopics.length > 0 && (
         <>
           <Text style={styles.label}>🎲 Select Subtopics</Text>
-          {subtopics.map((st) => (
+          {visibleSubtopics.map((st) => (
             <Pressable
               key={st}
               onPress={() => handleSubtopicToggle(st)}
@@ -235,6 +258,11 @@ export default function ArrangeQuiz() {
               <Text style={styles.subTopicText}>{st}</Text>
             </Pressable>
           ))}
+          {subtopics.length > MAX_SUBTOPICS_TO_RENDER && (
+            <Text style={styles.smallHint}>
+              Showing first {MAX_SUBTOPICS_TO_RENDER} subtopics for device stability.
+            </Text>
+          )}
         </>
       )}
 
@@ -319,6 +347,11 @@ const styles = StyleSheet.create({
     fontSize: 12,
     textAlign: 'left',
     marginBottom: 30,
+  },
+  smallHint: {
+    marginTop: 6,
+    fontSize: 12,
+    color: colors.mutedBlack,
   },
   label: {
     fontSize: 16,

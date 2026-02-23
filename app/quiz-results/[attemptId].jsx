@@ -1,12 +1,46 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
-import { ActivityIndicator, Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  FlatList,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+
 import { useAuth } from "../../contexts/AuthContext";
 import { useLevelProgress } from "../../contexts/LevelProgressContext";
 import { useQuizSession } from "../../contexts/QuizSessionContext";
 import QuizAction from "../../src/components/QuizAction";
 import { colors } from "../../theme/colors";
+
+const toPlainText = (value) => {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (value && typeof value === "object") {
+    return String(
+      value.text || value.label || value.name || value.value || value.answer || ""
+    ).trim();
+  }
+  return "";
+};
+
+const getQuestionText = (question = {}) =>
+  toPlainText(question?.question || question?.prompt || question?.text);
+
+const getQuestionAnswer = (question = {}) =>
+  toPlainText(
+    question?.answer ??
+      question?.correctAnswer ??
+      question?.correct_option ??
+      question?.correct
+  );
+
+const getQuestionExplanation = (question = {}) =>
+  toPlainText(question?.explanation || question?.reason);
 
 export default function QuizResults() {
   const router = useRouter();
@@ -53,6 +87,11 @@ export default function QuizResults() {
   }
 
   const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  const questionItems = questions.map((question, index) => ({
+    question,
+    index,
+    key: `${question?.id || "q"}-${index}`,
+  }));
   const totalQuestions = attempt.totalQuestions || questions.length || 0;
   const correctAnswers = attempt.correctAnswers || 0;
   const passed = Number(attempt.score) >= 50;
@@ -80,7 +119,7 @@ export default function QuizResults() {
     });
 
     if (result.ok) {
-      router.push("/quiz-generating");
+      router.replace("/quiz-generating");
       return;
     }
 
@@ -90,34 +129,50 @@ export default function QuizResults() {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <View style={styles.header}>
-        <Feather name="award" size={48} color={colors.primaryDark} />
-        <Text style={styles.title}>Quiz Complete</Text>
-        <Text style={styles.subtitle}>
-          Well done {user?.firstName || "champ"}!
-        </Text>
-      </View>
+    <FlatList
+      data={questionItems}
+      keyExtractor={(item) => item.key}
+      contentContainerStyle={styles.container}
+      initialNumToRender={6}
+      maxToRenderPerBatch={6}
+      windowSize={7}
+      removeClippedSubviews
+      ListHeaderComponent={
+        <>
+          <View style={styles.header}>
+            <Feather name="award" size={48} color={colors.primaryDark} />
+            <Text style={styles.title}>Quiz Complete</Text>
+            <Text style={styles.subtitle}>Well done {user?.firstName || "champ"}!</Text>
+          </View>
 
-      <View style={styles.stats}>
-        <Stat label="Score" value={`${attempt.score}%`} />
-        <Stat label="Correct" value={`${correctAnswers}/${totalQuestions}`} />
-        <Stat
-          label="Time"
-          value={attempt.timeTaken ? formatTime(attempt.timeTaken) : "--"}
-        />
-      </View>
+          <View style={styles.stats}>
+            <Stat label="Score" value={`${attempt.score}%`} />
+            <Stat label="Correct" value={`${correctAnswers}/${totalQuestions}`} />
+            <Stat
+              label="Time"
+              value={attempt.timeTaken ? formatTime(attempt.timeTaken) : "--"}
+            />
+          </View>
 
-      <Text style={styles.reviewTitle}>Review Answers</Text>
-      {questions.map((q, index) => {
-        const userAnswer = attempt.answers?.[index]?.answer || "No answer";
+          <Text style={styles.reviewTitle}>Review Answers</Text>
+        </>
+      }
+      ListEmptyComponent={
+        <View style={styles.questionCard}>
+          <Text>No question review is available for this quiz.</Text>
+        </View>
+      }
+      renderItem={({ item }) => {
+        const questionText = getQuestionText(item.question) || "Question";
+        const correctAnswer = getQuestionAnswer(item.question);
+        const explanation = getQuestionExplanation(item.question);
+        const userAnswer = toPlainText(attempt.answers?.[item.index]?.answer) || "No answer";
         const isCorrect =
           String(userAnswer).trim().toLowerCase() ===
-          String(q.answer).trim().toLowerCase();
+          String(correctAnswer).trim().toLowerCase();
 
         return (
           <View
-            key={index}
             style={[
               styles.questionCard,
               {
@@ -128,94 +183,93 @@ export default function QuizResults() {
             ]}
           >
             <Text style={styles.question}>
-              Q{index + 1}. {q.question}
+              Q{item.index + 1}. {questionText}
             </Text>
 
             <Text style={{ marginTop: 6 }}>
               Your answer:{" "}
-              <Text style={{ color: isCorrect ? "green" : "red" }}>
-                {userAnswer}
-              </Text>
+              <Text style={{ color: isCorrect ? "green" : "red" }}>{userAnswer}</Text>
             </Text>
 
             {!isCorrect && (
               <Text style={{ marginTop: 4 }}>
-                Correct answer: <Text style={{ color: "green" }}>{q.answer}</Text>
+                Correct answer: <Text style={{ color: "green" }}>{correctAnswer || "--"}</Text>
               </Text>
             )}
 
-            {q.explanation && (
-              <Text style={{ marginTop: 6, opacity: 0.7 }}>
-                Explanation: {q.explanation}
-              </Text>
+            {explanation && (
+              <Text style={{ marginTop: 6, opacity: 0.7 }}>Explanation: {explanation}</Text>
             )}
           </View>
         );
-      })}
+      }}
+      ListFooterComponent={
+        <View style={styles.actions}>
+          {!passed && (
+            <Pressable
+              onPress={() => {
+                const quizId = String(attempt?.quizId || quiz?.id || "").trim();
+                if (!quizId) {
+                  Alert.alert("Error", "This quiz cannot be retaken right now.");
+                  return;
+                }
 
-      {questions.length === 0 && (
-        <View style={styles.questionCard}>
-          <Text>No question review is available for this quiz.</Text>
-        </View>
-      )}
+                router.replace(`/choose-quiz-type/${quizId}`);
+              }}
+              style={styles.actionBtn2}
+            >
+              <QuizAction
+                icon={<Feather name="rotate-ccw" size={28} color={colors.white} />}
+                title="Practice makes Perfect"
+                description="Revise the topic and try again to build your confidence."
+              />
+            </Pressable>
+          )}
 
-      <View style={styles.actions}>
-        {!passed && (
+          {passed && nextConfig && (
+            <Pressable
+              onPress={handleLevelUp}
+              disabled={isLevelingUp}
+              style={[styles.actionBtn2, isLevelingUp && { opacity: 0.7 }]}
+            >
+              <QuizAction
+                icon={<Feather name="arrow-up-circle" size={28} color={colors.white} />}
+                title="Continue Practicing"
+                description={`Level up to ${nextConfig.difficulty.toUpperCase()}!`}
+              />
+            </Pressable>
+          )}
+
+          {passed && !nextConfig && (
+            <View style={{ marginTop: 16 }}>
+              <QuizAction
+                icon={<Feather name="check-circle" size={28} color={colors.white} />}
+                title="Mastery Achieved"
+                description="You've completed all levels for this topic!"
+              />
+            </View>
+          )}
+
           <Pressable
-            onPress={() => router.push(`/choose-quiz-type/${attempt.quizId}`)}
+            onPress={() =>
+              router.replace({
+                pathname: "/subject-topics",
+                params: {
+                  attemptId: resolvedAttemptId,
+                },
+              })
+            }
             style={styles.actionBtn2}
           >
             <QuizAction
-              icon={<Feather name="rotate-ccw" size={28} color={colors.white} />}
-              title="Practice makes Perfect"
-              description="Revise the topic and try again to build your confidence."
+              icon={<Feather name="compass" size={28} color={colors.white} />}
+              title="Explore Other Topics"
+              description="Discover more topics."
             />
           </Pressable>
-        )}
-
-        {passed && nextConfig && (
-          <Pressable
-            onPress={handleLevelUp}
-            disabled={isLevelingUp}
-            style={[styles.actionBtn2, isLevelingUp && { opacity: 0.7 }]}
-          >
-            <QuizAction
-              icon={<Feather name="arrow-up-circle" size={28} color={colors.white} />}
-              title="Continue Practicing"
-              description={`Level up to ${nextConfig.difficulty.toUpperCase()}!`}
-            />
-          </Pressable>
-        )}
-
-        {passed && !nextConfig && (
-          <View style={{ marginTop: 16 }}>
-            <QuizAction
-              icon={<Feather name="check-circle" size={28} color={colors.white} />}
-              title="Mastery Achieved"
-              description="You've completed all levels for this topic!"
-            />
-          </View>
-        )}
-
-        <Pressable
-          onPress={() =>
-            router.push({
-              pathname: "/subject-topics",
-              params: {
-                attemptId: resolvedAttemptId,
-              },
-            })
-          }
-          style={styles.actionBtn2}
-        >
-          <QuizAction
-            icon={<Feather name="compass" size={28} color={colors.white} />}
-            title="Explore Other Topics"
-            description="Discover more topics."
-          />
-        </Pressable>
-      </View>
-    </ScrollView>
+        </View>
+      }
+    />
   );
 }
 

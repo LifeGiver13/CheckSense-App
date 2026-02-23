@@ -52,6 +52,7 @@ export const useCurriculum = () => {
 
 export function CurriculumProvider({ children }) {
   const subjectsCacheRef = useRef({});
+  const subjectByIdCacheRef = useRef({});
   const topicsCacheRef = useRef({});
   const subjectsWithTopicCountsCacheRef = useRef({});
 
@@ -78,8 +79,41 @@ export function CurriculumProvider({ children }) {
       ? json.data.map(normalizeSubject).filter((item) => item.name)
       : [];
 
+    subjects.forEach((item) => {
+      if (item?.id) {
+        subjectByIdCacheRef.current[toCacheKey(item.id)] = item;
+      }
+    });
+
     subjectsCacheRef.current[cacheKey] = subjects;
     return subjects;
+  }, []);
+
+  const getSubjectById = useCallback(async (subjectId, { force = false } = {}) => {
+    const normalizedId = String(subjectId || "").trim();
+    if (!normalizedId) return null;
+
+    const cacheKey = toCacheKey(normalizedId);
+    if (!force && subjectByIdCacheRef.current[cacheKey]) {
+      return subjectByIdCacheRef.current[cacheKey];
+    }
+
+    const response = await fetch(
+      `${API_BASE_URL}/v2/subjects/${encodeURIComponent(normalizedId)}`
+    );
+    const json = await response.json().catch(() => ({}));
+
+    if (!response.ok) {
+      throw new Error(json?.message || "Failed to fetch subject");
+    }
+
+    const payload = json?.data && typeof json.data === "object" ? json.data : json;
+    const subject = normalizeSubject({ ...payload, id: payload?.id || normalizedId });
+
+    if (!subject?.id) return null;
+
+    subjectByIdCacheRef.current[cacheKey] = subject;
+    return subject;
   }, []);
 
   const getTopics = useCallback(async ({ classLevel, subject, force = false } = {}) => {
@@ -160,6 +194,7 @@ export function CurriculumProvider({ children }) {
 
   const clearCurriculumCache = useCallback(() => {
     subjectsCacheRef.current = {};
+    subjectByIdCacheRef.current = {};
     topicsCacheRef.current = {};
     subjectsWithTopicCountsCacheRef.current = {};
   }, []);
@@ -167,6 +202,7 @@ export function CurriculumProvider({ children }) {
   const value = useMemo(
     () => ({
       getSubjects,
+      getSubjectById,
       getTopics,
       getCachedTopics,
       getSubjectsWithTopicCounts,
@@ -174,6 +210,7 @@ export function CurriculumProvider({ children }) {
     }),
     [
       getSubjects,
+      getSubjectById,
       getTopics,
       getCachedTopics,
       getSubjectsWithTopicCounts,

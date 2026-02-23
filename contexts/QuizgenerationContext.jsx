@@ -63,7 +63,7 @@ export function QuizGenerationProvider({ children }) {
           Alert.alert("Quiz Ready", `${quiz.subject} - ${quiz.topic}`, [
             {
               text: "Start Quiz",
-              onPress: () => router.push(`/choose-quiz-type/${quiz.id}`),
+              onPress: () => router.replace(`/choose-quiz-type/${quiz.id}`),
             },
           ]);
           removePendingQuiz(quiz.id);
