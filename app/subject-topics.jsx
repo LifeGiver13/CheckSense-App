@@ -24,12 +24,12 @@ const DURATIONS = [
 const MAX_SUBTOPICS_TO_RENDER = 10;
 const MAX_SUBTOPICS_TO_SEND = 12;
 
+const resolveParam = (value) => (Array.isArray(value) ? value[0] : value);
 const getSubjectName = (subject) => {
   if (typeof subject === "string") return subject;
   if (subject && typeof subject === "object") return String(subject.name || "").trim();
   return "";
 };
-
 const getClassLevel = ({ classLevel, subject } = {}) => {
   const direct = String(classLevel || "").trim();
   if (direct) return direct;
@@ -39,17 +39,15 @@ const getClassLevel = ({ classLevel, subject } = {}) => {
   return "";
 };
 
-const resolveParam = (value) => (Array.isArray(value) ? value[0] : value);
-
 export default function SubjectTopics() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const { getTopics, getCachedTopics, getSubjectById } = useCurriculum();
   const { fetchAttemptById, fetchQuizById } = useQuizSession();
   const { setQuizConfig } = useQuizGeneration();
-  const subjectIdParam = resolveParam(params.subjectId);
-  const attemptIdParam = resolveParam(params.attemptId);
-  const quizIdParam = resolveParam(params.quizId);
+  const subjectIdParam = String(resolveParam(params.subjectId) || "").trim();
+  const attemptIdParam = String(resolveParam(params.attemptId) || "").trim();
+  const quizIdParam = String(resolveParam(params.quizId) || "").trim();
 
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -69,63 +67,89 @@ export default function SubjectTopics() {
     const resolveSource = async () => {
       setResolvingSource(true);
       try {
-        const directSubjectId = String(subjectIdParam || "").trim();
-        if (directSubjectId) {
-          setResolvedSubjectId(directSubjectId);
-          const subjectData = await getSubjectById(directSubjectId);
-          if (!isCancelled) {
-            if (subjectData?.name) setResolvedSubject(String(subjectData.name).trim());
-            if (subjectData?.classLevel) {
-              setResolvedClassLevel(String(subjectData.classLevel).trim());
-            }
+        let nextSubjectId = String(subjectIdParam || "").trim();
+        let nextSubject = "";
+        let nextClassLevel = "";
+
+        if (nextSubjectId) {
+          try {
+            const subjectData = await getSubjectById(nextSubjectId);
+            nextSubject = String(subjectData?.name || "").trim();
+            nextClassLevel = String(subjectData?.classLevel || "").trim();
+          } catch (_err) {
+            nextSubject = "";
+            nextClassLevel = "";
           }
         }
 
-        if (!attemptIdParam && !quizIdParam) {
-          return;
-        }
+        const needsFallback =
+          !nextSubject ||
+          !nextClassLevel ||
+          (!nextSubjectId && (attemptIdParam || quizIdParam));
 
-        let quizData = null;
-        let attemptData = null;
+        if (needsFallback && (attemptIdParam || quizIdParam)) {
+          let attemptData = null;
+          let quizData = null;
 
-        if (quizIdParam) {
-          quizData = await fetchQuizById(quizIdParam);
-        }
+          if (attemptIdParam) {
+            attemptData = await fetchAttemptById(attemptIdParam);
+          }
 
-        if (!quizData && attemptIdParam) {
-          attemptData = await fetchAttemptById(attemptIdParam);
-          if (attemptData?.quizId) {
-            quizData = await fetchQuizById(attemptData.quizId);
+          const targetQuizId = String(
+            quizIdParam || attemptData?.quizId || ""
+          ).trim();
+
+          if (targetQuizId) {
+            quizData = await fetchQuizById(targetQuizId);
+          }
+
+          const fallbackSubjectId = String(
+            quizData?.subjectId ||
+              attemptData?.subjectId ||
+              quizData?.subject?.id ||
+              attemptData?.subject?.id ||
+              ""
+          ).trim();
+          const fallbackSubject =
+            getSubjectName(quizData?.subject) || getSubjectName(attemptData?.subject);
+          const fallbackClassLevel =
+            getClassLevel({
+              classLevel: quizData?.classLevel,
+              subject: quizData?.subject,
+            }) ||
+            getClassLevel({
+              classLevel: attemptData?.classLevel,
+              subject: attemptData?.subject,
+            });
+
+          if (!nextSubjectId && fallbackSubjectId) {
+            nextSubjectId = fallbackSubjectId;
+          }
+          if (!nextSubject && fallbackSubject) {
+            nextSubject = fallbackSubject;
+          }
+          if (!nextClassLevel && fallbackClassLevel) {
+            nextClassLevel = fallbackClassLevel;
           }
         }
 
-        const subjectFromData =
-          getSubjectName(quizData?.subject) || getSubjectName(attemptData?.subject);
-        const classLevelFromData =
-          getClassLevel({
-            classLevel: quizData?.classLevel,
-            subject: quizData?.subject,
-          }) ||
-          getClassLevel({
-            classLevel: attemptData?.classLevel,
-            subject: attemptData?.subject,
-          });
-        const subjectIdFromData = String(
-          quizData?.subjectId ||
-            attemptData?.subjectId ||
-            quizData?.subject?.id ||
-            attemptData?.subject?.id ||
-            ""
-        ).trim();
+        if (nextSubjectId && (!nextSubject || !nextClassLevel)) {
+          const subjectData = await getSubjectById(nextSubjectId);
+          nextSubject = nextSubject || String(subjectData?.name || "").trim();
+          nextClassLevel = nextClassLevel || String(subjectData?.classLevel || "").trim();
+        }
 
         if (!isCancelled) {
-          if (subjectIdFromData) setResolvedSubjectId(subjectIdFromData);
-          if (subjectFromData) setResolvedSubject(subjectFromData);
-          if (classLevelFromData) setResolvedClassLevel(classLevelFromData);
+          setResolvedSubjectId(nextSubjectId);
+          setResolvedSubject(nextSubject);
+          setResolvedClassLevel(nextClassLevel);
         }
       } catch (_err) {
         if (!isCancelled) {
-          Alert.alert("Error", "Failed to resolve subject details.");
+          setResolvedSubjectId("");
+          setResolvedSubject("");
+          setResolvedClassLevel("");
+          Alert.alert("Error", "Failed to load subject details.");
         }
       } finally {
         if (!isCancelled) {
@@ -252,7 +276,6 @@ export default function SubjectTopics() {
       initialNumToRender={3}
       maxToRenderPerBatch={3}
       windowSize={5}
-      removeClippedSubviews
       contentContainerStyle={styles.container}
       ListHeaderComponent={
         <>

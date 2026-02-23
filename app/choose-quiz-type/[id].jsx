@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -31,6 +31,7 @@ export default function ChooseQuizType() {
   const [loading, setLoading] = useState(true);
   const [selectedMode, setSelectedMode] = useState("practice");
   const [starting, setStarting] = useState(false);
+  const isStartingRef = useRef(false);
 
   useEffect(() => {
     async function fetchQuiz() {
@@ -53,6 +54,10 @@ export default function ChooseQuizType() {
   }, [resolvedQuizId, fetchQuizById]);
 
   const handleStartQuiz = async () => {
+    if (starting || isStartingRef.current) return;
+    if (!resolvedQuizId || !quizData) return;
+
+    isStartingRef.current = true;
     setStarting(true);
 
     try {
@@ -69,6 +74,7 @@ export default function ChooseQuizType() {
     } catch (_err) {
       Alert.alert("Error", "Failed to start quiz");
     } finally {
+      isStartingRef.current = false;
       setStarting(false);
     }
   };
@@ -157,7 +163,7 @@ export default function ChooseQuizType() {
       <Pressable
         style={styles.startBtn}
         onPress={handleStartQuiz}
-        disabled={starting}
+        disabled={starting || !resolvedQuizId || !quizData}
       >
         {starting ? (
           <ActivityIndicator color="#fff" />

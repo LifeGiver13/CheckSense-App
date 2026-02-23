@@ -32,12 +32,12 @@ const styles = StyleSheet.create({
     info:{
         justifyContent: 'flex-start',
         marginLeft: 5,
-        alignItems:'left'
+        alignItems:'flex-start'
     },
     titleCont: {
         display: 'flex',
         flexDirection: 'row',
-        alignItems: 'left',
+        alignItems: 'flex-start',
         justifyContent: 'flex-start',
     }
     ,
@@ -48,7 +48,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         gap: 16,
         marginLeft: 20,
-        marginTop: "-4%"
+        marginTop: -4
     }
     ,
     title: {

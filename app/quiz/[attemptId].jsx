@@ -1,5 +1,4 @@
 import { Feather } from "@expo/vector-icons";
-import { Picker } from "@react-native-picker/picker";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 import {
@@ -69,7 +68,6 @@ export default function QuizScreen() {
     nextQuestion,
     previousQuestion,
     submitQuiz,
-    setCurrentQuestion,
     timeLeft,
     isExamMode,
     loading,
@@ -308,23 +306,10 @@ export default function QuizScreen() {
           <Text>Previous</Text>
         </Pressable>
 
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={safeCurrentQuestion}
-            onValueChange={(value) => {
-              const nextIndex = Number(value);
-              setCurrentQuestion(Number.isFinite(nextIndex) ? nextIndex : 0);
-            }}
-            mode="dropdown"
-          >
-            {questions.map((_, index) => (
-              <Picker.Item
-                key={index}
-                label={`Question ${index + 1}`}
-                value={index}
-              />
-            ))}
-          </Picker>
+        <View style={styles.questionJumpInfo}>
+          <Text style={styles.questionJumpText}>
+            {safeCurrentQuestion + 1} / {totalQuestions}
+          </Text>
         </View>
 
         {safeCurrentQuestion < totalQuestions - 1 ? (
@@ -414,13 +399,18 @@ const styles = StyleSheet.create({
     backgroundColor: colors.primaryDark,
     borderRadius: 4,
   },
-  pickerContainer: {
+  questionJumpInfo: {
     borderWidth: 1,
     borderColor: "#ccc",
     borderRadius: 8,
-    overflow: "hidden",
-    width: 120,
+    width: 88,
     height: 44,
+    alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#f8f8f8",
+  },
+  questionJumpText: {
+    color: colors.mutedBlack,
+    fontWeight: "600",
   },
 });

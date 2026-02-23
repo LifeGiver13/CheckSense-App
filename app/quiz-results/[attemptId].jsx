@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -49,6 +49,35 @@ export default function QuizResults() {
   const { user } = useAuth();
   const { isLevelingUp, continueLevelUp, getNextLevelFromSession } = useLevelProgress();
   const { attempt, quiz, loading, loadSession, currentConfig } = useQuizSession();
+  const isNavigatingRef = useRef(false);
+  const navigationLockTimeoutRef = useRef(null);
+
+  const releaseNavigationLock = useCallback(() => {
+    if (navigationLockTimeoutRef.current) {
+      clearTimeout(navigationLockTimeoutRef.current);
+      navigationLockTimeoutRef.current = null;
+    }
+    isNavigatingRef.current = false;
+  }, []);
+
+  const acquireNavigationLock = useCallback(() => {
+    if (isNavigatingRef.current) return false;
+    isNavigatingRef.current = true;
+    navigationLockTimeoutRef.current = setTimeout(() => {
+      isNavigatingRef.current = false;
+      navigationLockTimeoutRef.current = null;
+    }, 1500);
+    return true;
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      releaseNavigationLock();
+      return () => {
+        releaseNavigationLock();
+      };
+    }, [releaseNavigationLock])
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -109,7 +138,8 @@ export default function QuizResults() {
   };
 
   const handleLevelUp = async () => {
-    if (!nextConfig) return;
+    if (!nextConfig || isLevelingUp) return;
+    if (!acquireNavigationLock()) return;
 
     const result = await continueLevelUp({
       attempt,
@@ -119,10 +149,16 @@ export default function QuizResults() {
     });
 
     if (result.ok) {
-      router.replace("/quiz-generating");
+      try {
+        router.replace("/quiz-generating");
+      } catch (_err) {
+        releaseNavigationLock();
+        Alert.alert("Error", "Failed to open quiz generation.");
+      }
       return;
     }
 
+    releaseNavigationLock();
     if (result.error) {
       Alert.alert("Error", result.error);
     }
@@ -136,7 +172,6 @@ export default function QuizResults() {
       initialNumToRender={6}
       maxToRenderPerBatch={6}
       windowSize={7}
-      removeClippedSubviews
       ListHeaderComponent={
         <>
           <View style={styles.header}>
@@ -208,13 +243,20 @@ export default function QuizResults() {
           {!passed && (
             <Pressable
               onPress={() => {
+                if (!acquireNavigationLock()) return;
                 const quizId = String(attempt?.quizId || quiz?.id || "").trim();
                 if (!quizId) {
+                  releaseNavigationLock();
                   Alert.alert("Error", "This quiz cannot be retaken right now.");
                   return;
                 }
 
-                router.replace(`/choose-quiz-type/${quizId}`);
+                try {
+                  router.push(`/choose-quiz-type/${quizId}`);
+                } catch (_err) {
+                  releaseNavigationLock();
+                  Alert.alert("Error", "Failed to open quiz type.");
+                }
               }}
               style={styles.actionBtn2}
             >
@@ -251,14 +293,30 @@ export default function QuizResults() {
           )}
 
           <Pressable
-            onPress={() =>
-              router.replace({
-                pathname: "/subject-topics",
-                params: {
-                  attemptId: resolvedAttemptId,
-                },
-              })
-            }
+            onPress={() => {
+              if (!acquireNavigationLock()) return;
+              const subjectId = String(
+                quiz?.subjectId ||
+                  attempt?.subjectId ||
+                  quiz?.subject?.id ||
+                  attempt?.subject?.id ||
+                  ""
+              ).trim();
+              const attemptIdValue = String(resolvedAttemptId || attempt?.id || "").trim();
+
+              try {
+                router.push({
+                  pathname: "/subject-topics",
+                  params: {
+                    ...(subjectId ? { subjectId } : {}),
+                    ...(attemptIdValue ? { attemptId: attemptIdValue } : {}),
+                  },
+                });
+              } catch (_err) {
+                releaseNavigationLock();
+                Alert.alert("Error", "Failed to open topics.");
+              }
+            }}
             style={styles.actionBtn2}
           >
             <QuizAction
