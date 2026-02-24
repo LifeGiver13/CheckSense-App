@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef } from "react";
 import {
@@ -277,7 +277,7 @@ export default function QuizResults() {
               <QuizAction
                 icon={<Feather name="arrow-up-circle" size={28} color={colors.white} />}
                 title="Continue Practicing"
-                description={`Level up to ${nextConfig.difficulty.toUpperCase()}!`}
+                description={`Level up to ${nextConfig.quizType.toUpperCase()} ${nextConfig.difficulty.toUpperCase()}!`}
               />
             </Pressable>
           )}

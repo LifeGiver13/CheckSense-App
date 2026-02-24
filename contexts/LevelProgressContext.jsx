@@ -149,17 +149,17 @@ export function LevelProgressProvider({ children }) {
     const quizMeta = parseMetaObject(quiz?.meta);
 
     const difficulty =
-      normalizeDifficulty(currentConfig?.difficulty) ||
       normalizeDifficulty(attempt?.difficulty) ||
       normalizeDifficulty(attemptMeta?.difficulty) ||
       normalizeDifficulty(quiz?.difficulty) ||
       normalizeDifficulty(quizMeta?.difficulty) ||
+      normalizeDifficulty(currentConfig?.difficulty) ||
       "easy";
 
     const quizType =
-      normalizeQuizType(currentConfig?.quizType) ||
       normalizeQuizType(attempt?.quizType) ||
       normalizeQuizType(quiz?.quizType || quiz?.type) ||
+      normalizeQuizType(currentConfig?.quizType) ||
       "mcq";
 
     return { difficulty, quizType };

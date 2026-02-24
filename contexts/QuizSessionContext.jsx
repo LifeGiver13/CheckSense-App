@@ -95,6 +95,23 @@ const getClassLevel = ({ classLevel, subject } = {}) => {
   return "";
 };
 
+const normalizeDifficulty = (value) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return ["easy", "medium", "hard"].includes(normalized) ? normalized : "";
+};
+
+const parseMetaObject = (value) => {
+  if (value && typeof value === "object") return value;
+  if (typeof value !== "string") return null;
+
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : null;
+  } catch (_err) {
+    return null;
+  }
+};
+
 export const useQuizSession = () => {
   const context = useContext(QuizSessionContext);
   if (!context) {
@@ -194,6 +211,7 @@ export function QuizSessionProvider({ children }) {
         if (!sourceQuiz) {
           throw new Error("Quiz not available");
         }
+        const sourceMeta = parseMetaObject(sourceQuiz.meta);
 
         const sourceSubject = getSubjectName(sourceQuiz.subject);
         const sourceClassLevel = getClassLevel({
@@ -207,6 +225,9 @@ export function QuizSessionProvider({ children }) {
         const quizType = String(
           sourceQuiz.quizType || sourceQuiz.type || "mcq"
         ).toLowerCase();
+        const sourceDifficulty =
+          normalizeDifficulty(sourceQuiz.difficulty) ||
+          normalizeDifficulty(sourceMeta?.difficulty);
 
         const res = await fetch(`${API_BASE_URL}/v2/quiz-attempt`, {
           method: "POST",
@@ -233,7 +254,16 @@ export function QuizSessionProvider({ children }) {
 
         const json = await res.json();
         const attemptId = json?.data?.id || json?.id || null;
-        const attemptData = json?.data || null;
+        const attemptDataRaw = json?.data || null;
+        const attemptData =
+          attemptDataRaw && typeof attemptDataRaw === "object"
+            ? {
+                ...attemptDataRaw,
+                ...(sourceDifficulty && !attemptDataRaw?.difficulty
+                  ? { difficulty: sourceDifficulty }
+                  : {}),
+              }
+            : attemptDataRaw;
 
         if (attemptData?.id) {
           attemptCacheRef.current[attemptData.id] = attemptData;
@@ -489,6 +519,8 @@ export function QuizSessionProvider({ children }) {
 
   const currentConfig = useMemo(() => {
     if (!attempt && !quiz) return null;
+    const attemptMeta = parseMetaObject(attempt?.meta);
+    const quizMeta = parseMetaObject(quiz?.meta);
 
     const topicPayload = normalizeTopics(
       quiz?.topics || attempt?.topic || attempt?.topics || []
@@ -509,7 +541,11 @@ export function QuizSessionProvider({ children }) {
       topic: topicPayload[0]?.name || "",
       topics: topicPayload,
       difficulty:
-        attempt?.difficulty || attempt?.meta?.difficulty || quiz?.meta?.difficulty || "easy",
+        normalizeDifficulty(attempt?.difficulty) ||
+        normalizeDifficulty(attemptMeta?.difficulty) ||
+        normalizeDifficulty(quiz?.difficulty) ||
+        normalizeDifficulty(quizMeta?.difficulty) ||
+        "",
       quizType: attempt?.quizType || quiz?.quizType || quiz?.type || "mcq",
       duration: attempt?.duration || inferDuration(totalQuestions),
     };
