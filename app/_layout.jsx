@@ -6,6 +6,7 @@ import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'rea
 import 'react-native-gesture-handler';
 import { AuthProvider, useAuth } from '../contexts/AuthContext';
 import { CurriculumProvider } from '../contexts/CurriculumContext.jsx';
+import { LastQuizTakeContextProvider } from '../contexts/LastQuizTake.jsx';
 import { LevelProgressProvider } from '../contexts/LevelProgressContext.jsx';
 import { QuizGenerationProvider } from '../contexts/QuizgenerationContext.jsx';
 import { QuizSessionProvider } from '../contexts/QuizSessionContext.jsx';
@@ -61,7 +62,7 @@ export default function RootLayout() {
           Alert.alert("Session expired", "Please login again");
           await logout();
           navigation.navigate('login');
-        } 
+        }
       };
       checkSession();
       const interval = setInterval(checkSession, 60 * 1000); // check every minute
@@ -106,7 +107,7 @@ export default function RootLayout() {
               ]}
             >
               <Feather name="log-out" size={20} color={colors.black} />
-              <Text style={[styles.linkText, { color: colors.black, fontWeight: '700',marginLeft:2 }]}>
+              <Text style={[styles.linkText, { color: colors.black, fontWeight: '700', marginLeft: 2 }]}>
                 Logout
               </Text>
             </TouchableOpacity>
@@ -128,53 +129,56 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <CurriculumProvider>
-        <QuizGenerationProvider>
-          <LevelProgressProvider>
-            <QuizSessionProvider>
-            <Drawer
-          screenOptions={({ navigation }) => ({
-            headerShown: true,
-            headerTitle: () => <AppLogoPages color={colors.black} />,
-            headerRight: () => (
-              <TouchableOpacity
-                onPress={() => navigation.toggleDrawer()}
-                style={{ marginRight: 15 }}
-              >
-                <Feather name="menu" size={26} color={colors.black} />
-              </TouchableOpacity>
-            ),
-            headerLeft: () => null,
-          })}
-          drawerContent={DrawerContent}
-        >
-          <Drawer.Screen
-            name="index"
-            options={{ headerShown: false, drawerItemStyle: { height: 0 } }}
-          />
-          <Drawer.Screen
-            name="login"
-            options={{ headerShown: false, drawerItemStyle: { height: 0 } }}
-          />
-           <Drawer.Screen
-            name="dashboard"
-            options={{ title: 'Dashboard' }}
-          />
-          <Drawer.Screen
-            name="arrange-quiz"
-            options={{ title: 'Arrange Quiz' }}
-          />
-          <Drawer.Screen
-            name="quizzes"
-            options={{ title: 'Quizzes' }}
-          />
-          <Drawer.Screen
-            name="settings"
-            options={{ title: 'Settings' }}
-          />
-            </Drawer>
-            </QuizSessionProvider>
-          </LevelProgressProvider>
-        </QuizGenerationProvider>
+        <LastQuizTakeContextProvider>
+          <QuizGenerationProvider>
+            <LevelProgressProvider>
+              <QuizSessionProvider>
+                <Drawer
+                  screenOptions={({ navigation }) => ({
+                    headerShown: true,
+                    headerTitle: () => <AppLogoPages color={colors.black} />,
+                    headerRight: () => (
+                      <TouchableOpacity
+                        onPress={() => navigation.toggleDrawer()}
+                        style={{ marginRight: 15 }}
+                      >
+                        <Feather name="menu" size={26} color={colors.black} />
+                      </TouchableOpacity>
+                    ),
+                    headerLeft: () => null,
+                  })}
+                  drawerContent={DrawerContent}
+                >
+                  <Drawer.Screen
+                    name="index"
+                    options={{ headerShown: false, drawerItemStyle: { height: 0 } }}
+                  />
+                  <Drawer.Screen
+                    name="login"
+                    options={{ headerShown: false, drawerItemStyle: { height: 0 } }}
+                  />
+                  <Drawer.Screen
+                    name="dashboard"
+                    options={{ title: 'Dashboard' }}
+                  />
+                  <Drawer.Screen
+                    name="arrange-quiz"
+                    options={{ title: 'Arrange Quiz' }}
+                  />
+                  <Drawer.Screen
+                    name="quizzes"
+                    options={{ title: 'Quizzes' }}
+                  />
+                  <Drawer.Screen
+                    name="settings"
+                    options={{ title: 'Settings' }}
+                  />
+                </Drawer>
+              </QuizSessionProvider>
+            </LevelProgressProvider>
+          </QuizGenerationProvider>
+        </LastQuizTakeContextProvider>
+
       </CurriculumProvider>
     </AuthProvider>
   );

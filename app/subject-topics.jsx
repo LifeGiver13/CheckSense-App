@@ -12,10 +12,11 @@ import {
 } from "react-native";
 
 import { useCurriculum } from "../contexts/CurriculumContext.jsx";
+import { useLastQuizTake } from "../contexts/LastQuizTake.jsx";
 import { useQuizGeneration } from "../contexts/QuizgenerationContext.jsx";
 import { useQuizSession } from "../contexts/QuizSessionContext.jsx";
+import { formatProgressDate } from "../src/components/utils.js";
 import { colors } from "../theme/colors.jsx";
-
 const DURATIONS = [
   { label: "Short (7 questions | 5-10 min)", value: "short" },
   { label: "Medium (15 questions | 15-20 min)", value: "medium" },
@@ -45,10 +46,12 @@ export default function SubjectTopics() {
   const { getTopics, getCachedTopics, getSubjectById } = useCurriculum();
   const { fetchAttemptById, fetchQuizById } = useQuizSession();
   const { setQuizConfig } = useQuizGeneration();
+  const { progressTrackerById, getTopicProgress, getSubTopicProgress } = useLastQuizTake();
   const subjectIdParam = String(resolveParam(params.subjectId) || "").trim();
   const attemptIdParam = String(resolveParam(params.attemptId) || "").trim();
   const quizIdParam = String(resolveParam(params.quizId) || "").trim();
 
+  const [topicMap, setTopicMap] = useState(null);
   const [topics, setTopics] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedDurations, setSelectedDurations] = useState({});
@@ -105,10 +108,10 @@ export default function SubjectTopics() {
 
           const fallbackSubjectId = String(
             quizData?.subjectId ||
-              attemptData?.subjectId ||
-              quizData?.subject?.id ||
-              attemptData?.subject?.id ||
-              ""
+            attemptData?.subjectId ||
+            quizData?.subject?.id ||
+            attemptData?.subject?.id ||
+            ""
           ).trim();
           const fallbackSubject =
             getSubjectName(quizData?.subject) || getSubjectName(attemptData?.subject);
@@ -172,13 +175,14 @@ export default function SubjectTopics() {
     fetchQuizById,
   ]);
 
+
+
   useEffect(() => {
     if (!resolvedSubject || !resolvedClassLevel) {
       setTopics([]);
       setLoading(false);
       return;
     }
-
     const fetchTopics = async () => {
       setLoading(true);
       try {
@@ -212,6 +216,23 @@ export default function SubjectTopics() {
 
     fetchTopics();
   }, [resolvedSubject, resolvedClassLevel, getTopics, getCachedTopics]);
+
+  useEffect(() => {
+    if (!resolvedSubjectId) return;
+    // console.log(resolvedSubjectId)
+
+    const loadProgress = async () => {
+      const result = await progressTrackerById(resolvedSubjectId);
+      console.log(result)
+      if (result.success === true) {
+        console.log("Tracker:", result.tracker);
+      }
+      setTopicMap(result.topicMap)
+    };
+
+    loadProgress();
+  }, [resolvedSubjectId]);
+
 
   const handleDurationSelect = (topicName, subtopicName, duration) => {
     if (!duration) return;
@@ -264,6 +285,7 @@ export default function SubjectTopics() {
     isNavigatingRef.current = true;
     router.replace("/quiz-generating");
   };
+
 
   return (
     <FlatList
@@ -322,14 +344,21 @@ export default function SubjectTopics() {
       }
       renderItem={({ item: topic, index: topicIndex }) => {
         const isExpanded = expandedTopic === topic.name;
+        const topicProgress = getTopicProgress(topicMap, topic.name);
+
+        // console.log("Curriculum topic id:", topic)
+        // console.log("Curriculum topic progress:", topicProgress)
+
         return (
           <View style={styles.topicCard}>
             <View style={styles.topicHeaderRow}>
               <View style={styles.topicHeader}>
                 <Text style={styles.topicTag}>Topic {topicIndex + 1}</Text>
                 <Text style={styles.topicName}>{topic.name}</Text>
-
-              </View>
+                <Text style={styles.quizType}>
+                  {topicProgress ? formatProgressDate(topicProgress.lastQuizDate) : "Not attempted"}
+                </Text>              
+                </View>
 
             </View>
             <View style={styles.btnCont}>
@@ -365,29 +394,38 @@ export default function SubjectTopics() {
                   </View>
                 </View>
 
-                {topic.subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER).map((subtopic) => (
-                  <View key={subtopic} style={styles.subtopicContainer}>
-                    <Text style={styles.subtopicTitle}>{subtopic}</Text>
-                    <View style={styles.pickerWrap}>
-                      <Picker
-                        selectedValue={selectedDurations[`${topic.name}-${subtopic}`] || ""}
-                        onValueChange={(value) =>
-                          handleDurationSelect(topic.name, subtopic, value)
-                        }
-                        style={styles.picker}
-                      >
-                        <Picker.Item label="Select duration..." value="" />
-                        {DURATIONS.map((duration) => (
-                          <Picker.Item
-                            key={duration.value}
-                            label={duration.label}
-                            value={duration.value}
-                          />
-                        ))}
-                      </Picker>
-                    </View>
-                  </View>
-                ))}
+                {topic.subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER).map((subtopic) => {
+                  // console.log(topic)
+                  const subProgress = getSubTopicProgress(topicMap, topic.name, subtopic);
+                  // console.log('Subtopic Id ==', subProgress)
+                  return (
+                    <View key={subtopic} style={styles.subtopicContainer}>
+                      <Text style={styles.subtopicTitle}>{subtopic}</Text>
+                      <View style={styles.pickerWrap}>
+                        <Picker
+                          selectedValue={selectedDurations[`${topic.name}-${subtopic}`] || ""}
+                          onValueChange={(value) =>
+                            handleDurationSelect(topic.name, subtopic, value)
+                          }
+                          style={styles.picker}
+                        >
+                          <Picker.Item label="Select duration..." value="" />
+                          {DURATIONS.map((duration) => (
+                            <Picker.Item
+                              key={duration.value}
+                              label={duration.label}
+                              value={duration.value}
+                            />
+                          ))}
+                        </Picker>
+                      </View>
+                      <Text style={styles.expandBtnText}>
+                        {subProgress ? formatProgressDate(subProgress.lastQuizDate) : "Not attempted"}
+                      </Text>
+                    </View>)
+                }
+                )
+                }
 
                 {topic.subtopics.length > MAX_SUBTOPICS_TO_RENDER && (
                   <Text style={styles.subtopicHint}>

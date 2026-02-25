@@ -3,6 +3,28 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { API_BASE_URL } from "../theme/constants.jsx";
 
 const AuthContext = createContext();
+const REQUEST_TIMEOUT_MS = 12000;
+
+const fetchWithTimeout = async (url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+const safeJson = async (response) => {
+  try {
+    return await response.json();
+  } catch {
+    return {};
+  }
+};
+
+const isAbortError = (err) => err?.name === "AbortError";
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
@@ -28,12 +50,12 @@ export const AuthProvider = ({ children }) => {
           setUser(JSON.parse(storedUser));
 
           // Verify session with backend
-          const res = await fetch(`${API_BASE_URL}/v2/auth/verify-session`, {
+          const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/verify-session`, {
             method: "GET",
             headers: { Authorization: `Bearer ${storedToken}` },
           });
 
-          const data = await res.json();
+          const data = await safeJson(res);
 
           if (!res.ok || !data.tokenValid) {
             await AsyncStorage.removeItem("auth_token");
@@ -58,13 +80,13 @@ export const AuthProvider = ({ children }) => {
 
   const login = async (username, password) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/v2/auth/login`, {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username, password }),
       });
 
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok) return { success: false, error: data.message || "Login failed" };
 
       setToken(data.token);
@@ -78,13 +100,16 @@ export const AuthProvider = ({ children }) => {
       return { success: true };
     } catch (err) {
       console.error("Login error:", err);
+      if (isAbortError(err)) {
+        return { success: false, error: "Request timed out. Check API/server and network." };
+      }
       return { success: false, error: "Network error. Please try again." };
     }
   };
 
   const register = async (data) => {
     try {
-      const res = await fetch(`${API_BASE_URL}/v2/auth/register`, {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -97,11 +122,14 @@ export const AuthProvider = ({ children }) => {
         }),
       });
 
-      const result = await res.json();
+      const result = await safeJson(res);
       if (!res.ok) return { success: false, error: result.message || "Registration failed" };
       return { success: true };
     } catch (err) {
       console.error("Register error:", err);
+      if (isAbortError(err)) {
+        return { success: false, error: "Request timed out. Check API/server and network." };
+      }
       return { success: false, error: "Network error. Please try again." };
     }
   };
@@ -109,7 +137,7 @@ export const AuthProvider = ({ children }) => {
   const logout = async () => {
     try {
       if (token) {
-        await fetch(`${API_BASE_URL}/v2/auth/logout`, {
+        await fetchWithTimeout(`${API_BASE_URL}/v2/auth/logout`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ token }),
@@ -130,12 +158,12 @@ export const AuthProvider = ({ children }) => {
       const storedToken = await AsyncStorage.getItem("auth_token");
       if (!storedToken) return false;
 
-      const res = await fetch(`${API_BASE_URL}/v2/auth/verify-session`, {
+      const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/verify-session`, {
         method: "GET",
         headers: { Authorization: `Bearer ${storedToken}` },
       });
 
-      const data = await res.json();
+      const data = await safeJson(res);
       if (!res.ok || !data.tokenValid) {
         await AsyncStorage.removeItem("auth_token");
         await AsyncStorage.removeItem("auth_user");
