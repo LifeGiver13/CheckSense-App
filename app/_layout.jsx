@@ -56,6 +56,7 @@ export default function RootLayout() {
 
     // Auto logout if session expired
     React.useEffect(() => {
+      let interval;
       const checkSession = async () => {
         const valid = await verifySession();
         if (!valid) {
@@ -65,9 +66,9 @@ export default function RootLayout() {
         }
       };
       checkSession();
-      const interval = setInterval(checkSession, 60 * 1000); // check every minute
+      interval = setInterval(checkSession, 60 * 1000); // check every minute
       return () => clearInterval(interval);
-    }, [logout, navigation, verifySession]);
+    }, []);
 
     if (isLoading) return null; // wait until auth state is loaded
 
@@ -80,10 +81,10 @@ export default function RootLayout() {
           <View style={styles.divider} />
 
           <View style={styles.drawerLinks}>
-            {renderLink('arrange-quiz', 'Arrange Quiz', 'home')}
-            {renderLink('quizzes', 'Quizzes', 'book-open')}
+            {renderLink('dashboard', 'Dashboard', 'home')}
+            {renderLink('arrange-quiz', 'Arrange Quiz', 'book-open')}
+            {renderLink('quizzes', 'Quizzes', 'help-circle')}
             {renderLink('settings', 'Settings', 'settings')}
-            {renderLink('dashboard', 'Dashboard', 'folder')}
           </View>
         </ScrollView>
 

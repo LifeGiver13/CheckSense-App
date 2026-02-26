@@ -22,6 +22,19 @@ const DURATIONS = [
   { label: "Medium (15 questions | 15-20 min)", value: "medium" },
   { label: "Long (20 questions | 20-40 min)", value: "long" },
 ];
+
+const filterDurationsByDifficulty = (difficulty) => {
+  switch (difficulty) {
+    case "easy":
+      return DURATIONS.filter((d) => d.value !== "short");
+    case "medium":
+      return DURATIONS.filter((d) => d.value !== "meduim"); // remove long
+    case "hard":
+      return DURATIONS.filter((d) => d.value === "long"); // only short
+    default:
+      return DURATIONS; // fallback: show all
+  }
+};
 const MAX_SUBTOPICS_TO_RENDER = 10;
 const MAX_SUBTOPICS_TO_SEND = 12;
 
@@ -223,10 +236,10 @@ export default function SubjectTopics() {
 
     const loadProgress = async () => {
       const result = await progressTrackerById(resolvedSubjectId);
-      console.log(result)
-      if (result.success === true) {
-        console.log("Tracker:", result.tracker);
-      }
+      // console.log(result)
+      // if (result.success === true) {
+      //   console.log("Tracker:", result.tracker);
+      // }
       setTopicMap(result.topicMap)
     };
 
@@ -345,7 +358,7 @@ export default function SubjectTopics() {
       renderItem={({ item: topic, index: topicIndex }) => {
         const isExpanded = expandedTopic === topic.name;
         const topicProgress = getTopicProgress(topicMap, topic.name);
-
+        const availableDurations = filterDurationsByDifficulty(topicProgress?.lastQuizDifficulty);
         // console.log("Curriculum topic id:", topic)
         // console.log("Curriculum topic progress:", topicProgress)
 
@@ -356,9 +369,9 @@ export default function SubjectTopics() {
                 <Text style={styles.topicTag}>Topic {topicIndex + 1}</Text>
                 <Text style={styles.topicName}>{topic.name}</Text>
                 <Text style={styles.quizType}>
-                  {topicProgress ? formatProgressDate(topicProgress.lastQuizDate) : "Not attempted"}
-                </Text>              
-                </View>
+                  Last Quiz Date: {topicProgress ? formatProgressDate(topicProgress.lastQuizDate) : "Not attempted"}
+                </Text>
+              </View>
 
             </View>
             <View style={styles.btnCont}>
@@ -383,7 +396,7 @@ export default function SubjectTopics() {
                       style={styles.picker}
                     >
                       <Picker.Item label="Select duration..." value="" />
-                      {DURATIONS.map((duration) => (
+                      {availableDurations.map((duration) => (
                         <Picker.Item
                           key={duration.value}
                           label={duration.label}
@@ -397,6 +410,8 @@ export default function SubjectTopics() {
                 {topic.subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER).map((subtopic) => {
                   // console.log(topic)
                   const subProgress = getSubTopicProgress(topicMap, topic.name, subtopic);
+                  const availableSubDurations = filterDurationsByDifficulty(subProgress?.lastQuizDifficulty);
+                  console.log(subProgress?.lastQuizDifficulty || null)
                   // console.log('Subtopic Id ==', subProgress)
                   return (
                     <View key={subtopic} style={styles.subtopicContainer}>
@@ -410,7 +425,7 @@ export default function SubjectTopics() {
                           style={styles.picker}
                         >
                           <Picker.Item label="Select duration..." value="" />
-                          {DURATIONS.map((duration) => (
+                          {availableSubDurations.map((duration) => (
                             <Picker.Item
                               key={duration.value}
                               label={duration.label}
@@ -420,8 +435,9 @@ export default function SubjectTopics() {
                         </Picker>
                       </View>
                       <Text style={styles.expandBtnText}>
-                        {subProgress ? formatProgressDate(subProgress.lastQuizDate) : "Not attempted"}
+                        Last Quiz Date: {subProgress ? formatProgressDate(subProgress.lastQuizDate) : "Not attempted"}
                       </Text>
+                      <Text>{subProgress?.lastQuizDifficulty ? `Last difficulty was ${subProgress?.lastQuizDifficulty} so it will be hidden from the selection` : 'No previous difficulty'}</Text>
                     </View>)
                 }
                 )

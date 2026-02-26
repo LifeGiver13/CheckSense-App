@@ -40,7 +40,7 @@ export default function LoginScreen() {
         Alert.alert('Login Failed', result.error || 'Login failed');
       } else {
         Alert.alert('Login Successful', `Welcome, ${loginData.username}!`);
-        router.push('/arrange-quiz');
+        router.push('/dashboard');
       }
     } catch (err) {
       console.error(err);
@@ -112,12 +112,12 @@ export default function LoginScreen() {
         </Pressable>
 
         {/* Sign Up Link */}
-        <View style={styles.bottomText}>
+        {/* <View style={styles.bottomText}>
           <Text style={{ color: colors.black }}>Do not have an account? </Text>
           <Text style={styles.link} onPress={() => router.push('/register')}>
             Sign Up
           </Text>
-        </View>
+        </View> */}
 
         {/* Back to Home */}
         <Pressable style={styles.backButton} onPress={() => router.back()}>

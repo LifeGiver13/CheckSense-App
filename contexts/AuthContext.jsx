@@ -87,6 +87,7 @@ export const AuthProvider = ({ children }) => {
       });
 
       const data = await safeJson(res);
+      console.log(res)
       if (!res.ok) return { success: false, error: data.message || "Login failed" };
 
       setToken(data.token);

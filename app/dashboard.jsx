@@ -74,9 +74,22 @@ export default function Dashboard() {
                     ]}
                 />
 
-
-
                 <ActionCard
+                    icon={<Feather name='help-circle' size={28} color={colors.black} />}
+                    title="Explore Quizzes"
+                    description="Browse your past quizzes"
+                    buttons={[
+                        {
+                            label: "Browser Your Past Quizzes",
+                            icon: <Feather name="folder" size={18} color={colors.white} />,
+                            onPress: () => { router.push('/quizzes') },
+                            type: "primary",
+                        },
+                    ]}
+                />
+
+
+                {/* <ActionCard
                     icon={<Feather name='zap' size={28} color={colors.black} />}
                     title="Games"
                     description="Have fun with word searches and puzzles"
@@ -88,7 +101,8 @@ export default function Dashboard() {
                             type: "primary",
                         },
                     ]}
-                />
+                /> */}
+
             </View>
         </ScrollView>
     );
@@ -165,10 +179,10 @@ const styles = StyleSheet.create({
         borderRadius: 20,
     },
     userMsg: {
-        display:'flex',
-        flexDirection:'column',
-        justifyContent:'flex-start',
-        textAlign:'left',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'flex-start',
+        textAlign: 'left',
         marginLeft: -50
     }
 });

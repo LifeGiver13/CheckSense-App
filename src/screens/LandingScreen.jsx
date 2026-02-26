@@ -21,9 +21,9 @@ export default function LandingScreen() {
          <AppLogo />
 
         <View style={styles.headerActions}>
-          <Text style={styles.headerLink} onPress={() => router.push('/register')}>
+          {/* <Text style={styles.headerLink} onPress={() => router.push('/register')}>
             Sign Up
-          </Text>
+          </Text> */}
 
           <Text style={styles.headerButton} onPress={() => router.push('/login')}>
             Login

@@ -51,7 +51,7 @@ export function LastQuizTakeContextProvider({ children }) {
             const json = await safeJson(res);
             const tracker = json?.data?.[0] || null;
 
-            console.log(tracker)
+            // console.log(tracker)
             if (!tracker) return { success: true, tracker: null, topicMap: new Map() };
 
             const topicMap = new Map();
