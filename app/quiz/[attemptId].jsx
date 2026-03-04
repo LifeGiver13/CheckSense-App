@@ -2,12 +2,12 @@ import { Feather } from "@expo/vector-icons";
 import { useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback } from "react";
 import {
-    Pressable,
-    ScrollView,
-    StyleSheet,
-    Text,
-    TextInput,
-    View
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
 } from "react-native";
 import { useQuizSession } from "../../contexts/QuizSessionContext";
 import { colors } from "../../theme/colors";
@@ -35,9 +35,9 @@ const getQuestionText = (question = {}) =>
 const getQuestionAnswer = (question = {}) =>
   toPlainText(
     question?.answer ??
-      question?.correctAnswer ??
-      question?.correct_option ??
-      question?.correct
+    question?.correctAnswer ??
+    question?.correct_option ??
+    question?.correct
   );
 
 const getQuestionExplanation = (question = {}) =>
@@ -71,7 +71,7 @@ export default function QuizScreen() {
     timeLeft,
     isExamMode,
     loading,
-    saving,
+    saving
   } = useQuizSession();
 
   useFocusEffect(
@@ -88,7 +88,7 @@ export default function QuizScreen() {
   if (loading) {
     return (
       <View style={styles.center}>
-        <Feather name="loader" size={48} color={colors.primaryDark} />
+        <Feather name="refresh-cw" size={48} color={colors.primaryDark} />
         <Text style={{ marginTop: 12 }}>Loading quiz...</Text>
       </View>
     );
@@ -135,6 +135,22 @@ export default function QuizScreen() {
   const questionOptions = getQuestionOptions(currentQ);
   const currentAnswer = answers[safeCurrentQuestion] || "";
   const currentFeedback = feedback[safeCurrentQuestion];
+  const reviewFeedbackText = isSAQ
+    ? toPlainText(currentFeedback?.reviewFeedback || "")
+    : "";
+  const marksAwarded = isSAQ ? Number(currentFeedback?.marksAwarded || 0) : 0;
+  const maxMarks = isSAQ
+    ? Number(currentFeedback?.maxMarks || currentQ?.marks || 0)
+    : 0;
+  const saqStatus =
+    isSAQ && maxMarks > 0
+      ? marksAwarded >= maxMarks
+        ? "Full marks!"
+        : marksAwarded > 0
+          ? "Partially correct"
+          : "Needs improvement"
+      : "Reviewed";
+
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -216,29 +232,64 @@ export default function QuizScreen() {
             <View
               style={[
                 styles.section,
-                currentFeedback.isCorrect
-                  ? styles.correctBg
-                  : styles.incorrectBg,
+                isSAQ
+                  ? marksAwarded > 0
+                    ? marksAwarded >= maxMarks && maxMarks > 0
+                      ? styles.correctBg
+                      : styles.partialBg
+                    : styles.incorrectBg
+                  : currentFeedback.isCorrect
+                    ? styles.correctBg
+                    : styles.incorrectBg,
               ]}
             >
               <Text
                 style={[
                   styles.statusText,
-                  currentFeedback.isCorrect
-                    ? styles.correctText
-                    : styles.incorrectText,
+                  isSAQ
+                    ? marksAwarded > 0
+                      ? marksAwarded >= maxMarks && maxMarks > 0
+                        ? styles.correctText
+                        : styles.partialText
+                      : styles.incorrectText
+                    : currentFeedback.isCorrect
+                      ? styles.correctText
+                      : styles.incorrectText,
                 ]}
               >
-                {currentFeedback.isCorrect ? "Correct!" : "Incorrect"}
+                {isSAQ ? saqStatus : currentFeedback.isCorrect ? "Correct!" : "Incorrect"}
               </Text>
             </View>
 
-            <View style={[styles.section, styles.explanationBg]}>
-              <Text style={styles.sectionTitle}>Explanation</Text>
-              <Text style={styles.sectionText}>{questionExplanation || "--"}</Text>
-            </View>
+            {isSAQ ? (
+              <>
+                <View style={[styles.section, styles.explanationBg]}>
+                  <Text style={styles.sectionTitle}>Feedback</Text>
+                  <Text style={styles.sectionText}>{reviewFeedbackText || "--"}</Text>
+                </View>
 
-            {!currentFeedback.isCorrect && (
+                {!!questionExplanation && (
+                  <View style={[styles.section, styles.explanationBg]}>
+                    <Text style={styles.sectionTitle}>Marking scheme</Text>
+                    <Text style={styles.sectionText}>{questionExplanation}</Text>
+                  </View>
+                )}
+
+                <View style={[styles.section, styles.explanationBg]}>
+                  <Text style={styles.sectionTitle}>Marks</Text>
+                  <Text style={styles.sectionText}>
+                    {maxMarks > 0 ? `${marksAwarded}/${maxMarks}` : marksAwarded}
+                  </Text>
+                </View>
+              </>
+            ) : (
+              <View style={[styles.section, styles.explanationBg]}>
+                <Text style={styles.sectionTitle}>Explanation</Text>
+                <Text style={styles.sectionText}>{questionExplanation || "--"}</Text>
+              </View>
+            )}
+
+            {!isSAQ && !currentFeedback.isCorrect && (
               <View style={[styles.section, styles.answerBg]}>
                 <Text style={styles.sectionTitle}>Correct Answer</Text>
                 <Text style={styles.sectionText}>{questionAnswer || "--"}</Text>
@@ -372,11 +423,13 @@ const styles = StyleSheet.create({
   },
   correctBg: { backgroundColor: "#d4edda" },
   incorrectBg: { backgroundColor: "#f8d7da" },
+  partialBg: { backgroundColor: "#fff3cd" },
   explanationBg: { backgroundColor: "#e9ecef" },
   answerBg: { backgroundColor: "#d4edda" },
   statusText: { fontWeight: "bold", fontSize: 16 },
   correctText: { color: "green" },
   incorrectText: { color: "red" },
+  partialText: { color: "#856404" },
   sectionTitle: { fontWeight: "bold", marginBottom: 4 },
   sectionText: { fontSize: 14, lineHeight: 20 },
   btnNav: { padding: 12, backgroundColor: colors.primaryDark, borderRadius: 8 },

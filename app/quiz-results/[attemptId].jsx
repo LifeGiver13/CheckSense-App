@@ -48,7 +48,8 @@ export default function QuizResults() {
   const resolvedAttemptId = Array.isArray(attemptId) ? attemptId[0] : attemptId;
   const { user } = useAuth();
   const { isLevelingUp, continueLevelUp, getNextLevelFromSession } = useLevelProgress();
-  const { attempt, quiz, loading, loadSession, currentConfig } = useQuizSession();
+  const { attempt, quiz, loading, loadSession, currentConfig, reviewByAttemptId } =
+    useQuizSession();
   const isNavigatingRef = useRef(false);
   const navigationLockTimeoutRef = useRef(null);
 
@@ -116,6 +117,18 @@ export default function QuizResults() {
   }
 
   const questions = Array.isArray(quiz.questions) ? quiz.questions : [];
+  const reviewResponses =
+    reviewByAttemptId?.[String(resolvedAttemptId || "")] ||
+    reviewByAttemptId?.[String(attempt.id || "")] ||
+    null;
+  const hasExamReview = Array.isArray(reviewResponses) && reviewResponses.length > 0;
+  const totalPossibleMarks = questions.reduce(
+    (sum, q) => sum + Number(q?.marks || 0),
+    0
+  );
+  const totalMarksAwarded = hasExamReview
+    ? reviewResponses.reduce((sum, r) => sum + Number(r?.marksAwarded || 0), 0)
+    : 0;
   const questionItems = questions.map((question, index) => ({
     question,
     index,
@@ -182,7 +195,11 @@ export default function QuizResults() {
 
           <View style={styles.stats}>
             <Stat label="Score" value={`${attempt.score}%`} />
-            <Stat label="Correct" value={`${correctAnswers}/${totalQuestions}`} />
+            {hasExamReview && totalPossibleMarks > 0 ? (
+              <Stat label="Marks" value={`${totalMarksAwarded}/${totalPossibleMarks}`} />
+            ) : (
+              <Stat label="Correct" value={`${correctAnswers}/${totalQuestions}`} />
+            )}
             <Stat
               label="Time"
               value={attempt.timeTaken ? formatTime(attempt.timeTaken) : "--"}
@@ -199,6 +216,53 @@ export default function QuizResults() {
       }
       renderItem={({ item }) => {
         const questionText = getQuestionText(item.question) || "Question";
+        const review = hasExamReview ? reviewResponses[item.index] : null;
+        if (review) {
+          const userAnswer =
+            toPlainText(review?.question?.response) ||
+            toPlainText(attempt.answers?.[item.index]?.answer) ||
+            "No answer";
+          const marksAwarded = Number(review?.marksAwarded || 0);
+          const maxMarks =
+            Number(item.question?.marks || 0) || Number(review?.question?.marks || 0);
+          const feedbackText = toPlainText(review?.feedback);
+          const isFullMarks = maxMarks > 0 && marksAwarded >= maxMarks;
+
+          return (
+            <View
+              style={[
+                styles.questionCard,
+                {
+                  backgroundColor: isFullMarks ? "#e6fffa" : "#fff7ed",
+                  borderLeftColor: isFullMarks ? "#84cc16" : "#f97316",
+                  borderLeftWidth: 2,
+                },
+              ]}
+            >
+              <Text style={styles.question}>
+                Q{item.index + 1}. {questionText}
+              </Text>
+
+              <Text style={{ marginTop: 6 }}>
+                Your answer: <Text style={{ color: colors.primaryDark }}>{userAnswer}</Text>
+              </Text>
+
+              <Text style={{ marginTop: 4 }}>
+                Marks awarded:{" "}
+                <Text style={{ fontWeight: "600" }}>
+                  {maxMarks ? `${marksAwarded}/${maxMarks}` : marksAwarded}
+                </Text>
+              </Text>
+
+              {feedbackText && (
+                <Text style={{ marginTop: 6, opacity: 0.7 }}>
+                  Feedback: {feedbackText}
+                </Text>
+              )}
+            </View>
+          );
+        }
+
         const correctAnswer = getQuestionAnswer(item.question);
         const explanation = getQuestionExplanation(item.question);
         const userAnswer = toPlainText(attempt.answers?.[item.index]?.answer) || "No answer";

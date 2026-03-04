@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import { API_BASE_URL } from "../theme/constants";
 import { useAuth } from "./AuthContext";
@@ -25,15 +26,15 @@ const normalizeTopics = (topics = []) => {
       const rawSubtopics = topic?.subtopic || topic?.subtopics || [];
       const subtopic = Array.isArray(rawSubtopics)
         ? rawSubtopics
-            .map((st) =>
-              typeof st === "string"
-                ? { name: st, description: "" }
-                : {
-                    name: st?.name || "",
-                    description: st?.description || "",
-                  }
-            )
-            .filter((st) => st.name)
+          .map((st) =>
+            typeof st === "string"
+              ? { name: st, description: "" }
+              : {
+                name: st?.name || "",
+                description: st?.description || "",
+              }
+          )
+          .filter((st) => st.name)
         : [];
 
       return {
@@ -71,9 +72,9 @@ const getQuestionText = (question = {}) =>
 const getQuestionAnswer = (question = {}) =>
   toPlainText(
     question?.answer ??
-      question?.correctAnswer ??
-      question?.correct_option ??
-      question?.correct
+    question?.correctAnswer ??
+    question?.correct_option ??
+    question?.correct
   );
 
 const getSubjectName = (subject) => {
@@ -132,6 +133,7 @@ export function QuizSessionProvider({ children }) {
   const [timeLeft, setTimeLeft] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reviewByAttemptId, setReviewByAttemptId] = useState({});
 
   const attemptCacheRef = useRef({});
   const quizCacheRef = useRef({});
@@ -139,6 +141,63 @@ export function QuizSessionProvider({ children }) {
   const activeLoadRequestRef = useRef(0);
 
   const isExamMode = attempt?.quizMode === "exam";
+
+  const safeJson = async (response) => {
+    try {
+      return await response.json();
+    } catch {
+      return {};
+    }
+  };
+
+  const reviewAnswers = async (questions, options = {}) => {
+    try {
+      const { answersByIndex } = options;
+
+      const userStr = await AsyncStorage.getItem("auth_user");
+      const userObj = JSON.parse(userStr || "{}");
+      const username = user?.username || userObj?.username || "";
+      const classLevel =
+        user?.profile?.defaultClass || userObj?.profile?.defaultClass || "";
+
+      // Only include the fields the API expects
+      const payloadQuestions = (questions || []).map((q, index) => ({
+        question: getQuestionText(q),
+        response: toPlainText((answersByIndex ?? answers)?.[index] ?? ""),
+        markingScheme: toPlainText(q.markingScheme || q.explanation || ""),
+        marks: Number(q.marks || 0),
+      }));
+
+      const payload = {
+        classLevel,
+        username,
+        questions: payloadQuestions,
+      };
+
+      const res = await fetch(`${API_BASE_URL}/v2/reviewAnswers`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (!res.ok) {
+        const errData = await safeJson(res);
+        return {
+          success: false,
+          error: errData?.message || "Failed to review answers.",
+        };
+      }
+
+      const jsonRes = await safeJson(res);
+      const responses = Array.isArray(jsonRes.responses) ? jsonRes.responses : [];
+
+      return { success: true, responses };
+    } catch (error) {
+      console.error("Review answers error:", error);
+      return { success: false, error: "Network Error. Please try again." };
+    }
+  };
+
 
   const fetchAttemptById = useCallback(
     async (attemptId, options = {}) => {
@@ -258,11 +317,11 @@ export function QuizSessionProvider({ children }) {
         const attemptData =
           attemptDataRaw && typeof attemptDataRaw === "object"
             ? {
-                ...attemptDataRaw,
-                ...(sourceDifficulty && !attemptDataRaw?.difficulty
-                  ? { difficulty: sourceDifficulty }
-                  : {}),
-              }
+              ...attemptDataRaw,
+              ...(sourceDifficulty && !attemptDataRaw?.difficulty
+                ? { difficulty: sourceDifficulty }
+                : {}),
+            }
             : attemptDataRaw;
 
         if (attemptData?.id) {
@@ -350,11 +409,50 @@ export function QuizSessionProvider({ children }) {
     [currentQuestion]
   );
 
-  const submitAnswer = useCallback(() => {
+  const submitAnswer = useCallback(async () => {
     if (!quiz || !Array.isArray(quiz.questions)) return;
 
     const q = quiz.questions[currentQuestion];
     if (!q) return;
+
+    const quizType = String(
+      attempt?.quizType || quiz?.quizType || quiz?.type || ""
+    ).toLowerCase();
+    const isSaqQuiz = quizType === "saq";
+
+    if (!isExamMode && isSaqQuiz) {
+      setSaving(true);
+      try {
+        const result = await reviewAnswers([q], {
+          answersByIndex: [answers[currentQuestion]],
+        });
+
+        if (!result.success) {
+          Alert.alert("Error", result.error || "Failed to review answer.");
+          return;
+        }
+
+        const review = result.responses?.[0] || null;
+        const marksAwarded = Number(review?.marksAwarded || 0);
+        const maxMarks = Number(q?.marks || review?.question?.marks || 0);
+        const reviewFeedback = toPlainText(review?.feedback || "");
+
+        setFeedback((prev) => ({
+          ...prev,
+          [currentQuestion]: {
+            submitted: true,
+            isCorrect: maxMarks > 0 ? marksAwarded >= maxMarks : marksAwarded > 0,
+            marksAwarded,
+            maxMarks,
+            reviewFeedback,
+          },
+        }));
+      } finally {
+        setSaving(false);
+      }
+
+      return;
+    }
 
     const userAnswer = normalizeText(toPlainText(answers[currentQuestion]));
     const correctAnswer = normalizeText(getQuestionAnswer(q));
@@ -366,7 +464,7 @@ export function QuizSessionProvider({ children }) {
         isCorrect: userAnswer === correctAnswer,
       },
     }));
-  }, [quiz, currentQuestion, answers]);
+  }, [quiz, attempt, currentQuestion, answers, isExamMode]);
 
   const revealHint = useCallback(() => {
     if (!quiz) return;
@@ -402,7 +500,7 @@ export function QuizSessionProvider({ children }) {
         answer: toPlainText(answers[index]),
         marksAwarded:
           normalizeText(toPlainText(answers[index])) ===
-          normalizeText(getQuestionAnswer(q))
+            normalizeText(getQuestionAnswer(q))
             ? 1
             : 0,
       }));
@@ -435,27 +533,71 @@ export function QuizSessionProvider({ children }) {
     try {
       const questionList = Array.isArray(quiz.questions) ? quiz.questions : [];
       const totalQuestions = questionList.length;
+      const quizType = String(
+        attempt?.quizType || quiz?.quizType || quiz?.type || ""
+      ).toLowerCase();
+      const isSaqQuiz = quizType === "saq";
 
-      const correctCount = questionList.reduce((count, q, index) => {
+      let correctCount = questionList.reduce((count, q, index) => {
         const userAnswer = normalizeText(toPlainText(answers[index]));
         const correctAnswer = normalizeText(getQuestionAnswer(q));
         return userAnswer === correctAnswer ? count + 1 : count;
       }, 0);
 
-      const percentageScore =
+      let percentageScore =
         totalQuestions > 0
           ? Math.round((correctCount / totalQuestions) * 100)
           : 0;
 
-      const answersArray = questionList.map((q, index) => ({
+      let answersArray = questionList.map((q, index) => ({
         question: getQuestionText(q),
         answer: toPlainText(answers[index]),
         marksAwarded:
           normalizeText(toPlainText(answers[index])) ===
-          normalizeText(getQuestionAnswer(q))
+            normalizeText(getQuestionAnswer(q))
             ? 1
             : 0,
       }));
+
+      if (attempt?.quizMode === "exam" && isSaqQuiz && questionList.length > 0) {
+        const reviewResult = await reviewAnswers(questionList);
+        if (reviewResult.success) {
+          const responses = Array.isArray(reviewResult.responses)
+            ? reviewResult.responses
+            : [];
+
+          setReviewByAttemptId((prev) => ({
+            ...prev,
+            [String(attempt.id)]: responses,
+          }));
+
+          const totalPossibleMarks = questionList.reduce(
+            (sum, q) => sum + Number(q?.marks || 0),
+            0
+          );
+          const totalMarksAwarded = responses.reduce(
+            (sum, r) => sum + Number(r?.marksAwarded || 0),
+            0
+          );
+
+          percentageScore =
+            totalPossibleMarks > 0
+              ? Math.round((totalMarksAwarded / totalPossibleMarks) * 100)
+              : 0;
+
+          correctCount = responses.reduce((count, r, index) => {
+            const maxMarks = Number(questionList[index]?.marks || 0);
+            if (!maxMarks) return count;
+            return Number(r?.marksAwarded || 0) >= maxMarks ? count + 1 : count;
+          }, 0);
+
+          answersArray = questionList.map((q, index) => ({
+            question: getQuestionText(q),
+            answer: toPlainText(answers[index]),
+            marksAwarded: Number(responses[index]?.marksAwarded || 0),
+          }));
+        }
+      }
 
       const res = await fetch(`${API_BASE_URL}/v2/quiz-attempt/${attempt.id}`, {
         method: "PUT",
@@ -558,6 +700,7 @@ export function QuizSessionProvider({ children }) {
         quiz,
         answers,
         feedback,
+        reviewByAttemptId,
         revealedHints,
         currentQuestion,
         timeLeft,
@@ -577,6 +720,7 @@ export function QuizSessionProvider({ children }) {
         saveProgress,
         submitQuiz,
         setCurrentQuestion,
+        reviewAnswers
       }}
     >
       {children}

@@ -102,7 +102,7 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       console.error("Login error:", err);
       if (isAbortError(err)) {
-        return { success: false, error: "Request timed out. Check API/server and network." };
+        return { success: false, error: "Request timed out.Try again." };
       }
       return { success: false, error: "Network error. Please try again." };
     }
@@ -157,7 +157,9 @@ export const AuthProvider = ({ children }) => {
   const verifySession = async () => {
     try {
       const storedToken = await AsyncStorage.getItem("auth_token");
-      if (!storedToken) return false;
+      if (!storedToken) {
+        return { status: "no_token" };
+      }
 
       const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/verify-session`, {
         method: "GET",
@@ -165,21 +167,27 @@ export const AuthProvider = ({ children }) => {
       });
 
       const data = await safeJson(res);
-      if (!res.ok || !data.tokenValid) {
-        await AsyncStorage.removeItem("auth_token");
-        await AsyncStorage.removeItem("auth_user");
-        setToken(null);
-        setUser(null);
-        return false;
+
+      if (!res.ok) {
+        return { status: "invalid" };
       }
 
-      return true;
+      if (!data.tokenValid) {
+        return { status: "expired" };
+      }
+
+      return { status: "valid" };
+
     } catch (err) {
       console.error("Session verification error:", err);
-      return false;
+
+      if (isAbortError(err)) {
+        return { status: "timeout" };
+      }
+
+      return { status: "network_error" };
     }
   };
-
   const updateUserProfile = async (profileData) => {
     if (!user) return;
 

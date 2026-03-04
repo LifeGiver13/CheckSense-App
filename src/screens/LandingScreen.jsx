@@ -1,8 +1,10 @@
 import { Feather } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
-
+import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { useEffect, useState } from 'react';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../theme/colors.jsx';
 import AppLogo from '../components/AppLogo';
 import FeatureCard from '../components/FeatureCard';
@@ -10,11 +12,33 @@ import PrimaryButton from '../components/PrimaryButton';
 export default function LandingScreen() {
     const router = useRouter()
   
+      const [username, setUsername] = useState('');
+    
+      useEffect(() => {
+        const loadUser = async () => {
+          try {
+            const userData = await AsyncStorage.getItem('auth_user') || null;
+            if (userData) {
+              const parsed = JSON.parse(userData);
+              setUsername(parsed.username || '');
+            }
+            if(username){
+              router.replace('/dashboard')
+            }
+          } catch (error) {
+            console.log('Failed to load user', error);
+          }
+        };
+    
+        loadUser();
+      }, []);
+    
   return (
     <LinearGradient
       colors={[colors.primary, colors.primaryDark]}
       style={styles.container}
     >
+      <StatusBar style="light" />
       <ScrollView contentContainerStyle={styles.content}>
         {/* Header */}
        <View style={styles.header}>
