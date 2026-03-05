@@ -71,7 +71,8 @@ export default function QuizScreen() {
     timeLeft,
     isExamMode,
     loading,
-    saving
+    saving,
+    reviewingAnswerIndex
   } = useQuizSession();
 
   useFocusEffect(
@@ -124,7 +125,7 @@ export default function QuizScreen() {
     : 0;
   const currentQ = questions[safeCurrentQuestion] || questions[0];
   const progress = ((safeCurrentQuestion + 1) / totalQuestions) * 100;
-  const isSAQ = String(quiz.quizType || quiz.type || "").toLowerCase() === "saq";
+  const isSAQ = String(attempt?.quizType || quiz.quizType || quiz.type || "").toLowerCase() === "saq";
   const subjectName = getSubjectName(quiz.subject) || "--";
   const topicName = quiz.topics?.[0]?.name || "--";
   const resolvedTimeLeft = Number.isFinite(timeLeft) ? timeLeft : 0;
@@ -151,6 +152,11 @@ export default function QuizScreen() {
           : "Needs improvement"
       : "Reviewed";
 
+  const isReviewingCurrentAnswer =
+    !isExamMode &&
+    isSAQ &&
+    Number.isFinite(reviewingAnswerIndex) &&
+    Number(reviewingAnswerIndex) === safeCurrentQuestion;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -218,7 +224,7 @@ export default function QuizScreen() {
           <TextInput
             value={currentAnswer}
             onChangeText={setAnswer}
-            editable={!currentFeedback?.submitted}
+            editable={!currentFeedback?.submitted && !isReviewingCurrentAnswer}
             multiline
             numberOfLines={5}
             placeholder="Write your answer here..."
@@ -334,12 +340,14 @@ export default function QuizScreen() {
         )}
       </View>
 
-      {/* Submit Answer button */}
+        {/* Submit Answer button */}
       {!isExamMode &&
         currentAnswer &&
         !currentFeedback?.submitted && (
           <Pressable onPress={submitAnswer} disabled={saving} style={[styles.btnNav, saving && { opacity: 0.7 }]}>
-            <Text style={styles.btn}>Submit Answer</Text>
+            <Text style={styles.btn}>
+              {isReviewingCurrentAnswer ? "Reviewing..." : "Submit Answer"}
+            </Text>
           </Pressable>
         )}
 

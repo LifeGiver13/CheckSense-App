@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   useCallback,
@@ -7,7 +8,6 @@ import {
   useRef,
   useState,
 } from "react";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Alert } from "react-native";
 import { API_BASE_URL } from "../theme/constants";
 import { useAuth } from "./AuthContext";
@@ -133,6 +133,7 @@ export function QuizSessionProvider({ children }) {
   const [timeLeft, setTimeLeft] = useState(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reviewingAnswerIndex, setReviewingAnswerIndex] = useState(null);
   const [reviewByAttemptId, setReviewByAttemptId] = useState({});
 
   const attemptCacheRef = useRef({});
@@ -158,7 +159,10 @@ export function QuizSessionProvider({ children }) {
       const userObj = JSON.parse(userStr || "{}");
       const username = user?.username || userObj?.username || "";
       const classLevel =
-        user?.profile?.defaultClass || userObj?.profile?.defaultClass || "";
+        toPlainText(attempt?.classLevel || quiz?.classLevel) ||
+        user?.profile?.defaultClass ||
+        userObj?.profile?.defaultClass ||
+        "";
 
       // Only include the fields the API expects
       const payloadQuestions = (questions || []).map((q, index) => ({
@@ -176,7 +180,10 @@ export function QuizSessionProvider({ children }) {
 
       const res = await fetch(`${API_BASE_URL}/v2/reviewAnswers`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify(payload),
       });
 
@@ -354,6 +361,7 @@ export function QuizSessionProvider({ children }) {
       setRevealedHints({});
       setCurrentQuestion(0);
       setTimeLeft(null);
+      setReviewingAnswerIndex(null);
 
       try {
         const attemptData = await fetchAttemptById(attemptId);
@@ -421,6 +429,7 @@ export function QuizSessionProvider({ children }) {
     const isSaqQuiz = quizType === "saq";
 
     if (!isExamMode && isSaqQuiz) {
+      setReviewingAnswerIndex(currentQuestion);
       setSaving(true);
       try {
         const result = await reviewAnswers([q], {
@@ -449,6 +458,7 @@ export function QuizSessionProvider({ children }) {
         }));
       } finally {
         setSaving(false);
+        setReviewingAnswerIndex(null);
       }
 
       return;
@@ -555,11 +565,11 @@ export function QuizSessionProvider({ children }) {
         marksAwarded:
           normalizeText(toPlainText(answers[index])) ===
             normalizeText(getQuestionAnswer(q))
-            ? 1
-            : 0,
+             ? 1
+             : 0,
       }));
 
-      if (attempt?.quizMode === "exam" && isSaqQuiz && questionList.length > 0) {
+      if (isSaqQuiz && questionList.length > 0) {
         const reviewResult = await reviewAnswers(questionList);
         if (reviewResult.success) {
           const responses = Array.isArray(reviewResult.responses)
@@ -700,6 +710,7 @@ export function QuizSessionProvider({ children }) {
         quiz,
         answers,
         feedback,
+        reviewingAnswerIndex,
         reviewByAttemptId,
         revealedHints,
         currentQuestion,

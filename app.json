@@ -4,7 +4,7 @@
     "slug": "CheckSense",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/splash-icon.png",
+    "icon": "./assets/images/app-icon.png",
     "scheme": "checksense",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -13,8 +13,8 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#4338ca",
-        "foregroundImage": "./assets/images/adaptive-icon.png"
+        "backgroundColor": "#ffffff",
+        "foregroundImage": "./assets/images/adaptive-icon-foreground.png"
         // "backgroundImage": "./assets/images/splash-icon.png",
         // "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
@@ -24,19 +24,19 @@
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/app-icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/checksense-log.png",
-          "imageWidth": 240,
+          "image": "./assets/images/splash-logo.png",
+          "imageWidth": 320,
           "resizeMode": "contain",
-          "backgroundColor": "#4338ca",
+          "backgroundColor": "#ffffff",
           "dark": {
-            "image": "./assets/images/checksense-log.png",
+            "image": "./assets/images/splash-logo.png",
             "backgroundColor": "#000000"
           }
         }
