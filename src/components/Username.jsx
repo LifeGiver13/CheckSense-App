@@ -1,53 +1,55 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useEffect, useState } from 'react';
-import { Image, StyleSheet, Text, View } from 'react-native';
+import { Image, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { colors } from '../../theme/colors.jsx';
 
-export default function Username({ color = colors.black, avatarSize = 50 }) {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [avatar, setAvatar] = useState(null);
+export default function Username({ user, color = colors.black, avatarSize = 50 }) {
+  const router = useRouter();
 
-  useEffect(() => {
-    const loadUser = async () => {
-      try {
-        const userData = await AsyncStorage.getItem('auth_user');
-        if (userData) {
-          const parsed = JSON.parse(userData);
-          setUsername(parsed.username || '');
-          setEmail(parsed.email || '');
-          setAvatar(parsed?.profile?.profilePic || null);
-        }
-      } catch (error) {
-        console.log('Failed to load user', error);
-      }
-    };
+  const username = user?.username || '';
+  const email = user?.email || '';
+  const avatar = user?.profile || null;
 
-    loadUser();
-  }, []);
+  // Get first letter for default avatar
+  const initial = username?.charAt(0)?.toUpperCase() || 'U';
 
   return (
     <View style={styles.container}>
-      {avatar && (
-        <Image
-          source={{ uri: avatar }}
-          style={[styles.avatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}
-        />
-      )}
-      <View style={styles.info}>
-        <Text style={[styles.text, { color }]}>{username}</Text>
-        <Text style={[styles.subtitle, { color }]}>{email}</Text>
-      </View>
+      <TouchableOpacity onPress={() => router.replace('/settings/account')} style={{ flexDirection: 'row', alignItems: 'center' }}>
+        {avatar ? (
+          <Image
+            source={{ uri: avatar }}
+            style={[styles.avatar, { width: avatarSize, height: avatarSize, borderRadius: avatarSize / 2 }]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.avatar,
+              {
+                width: avatarSize,
+                height: avatarSize,
+                borderRadius: avatarSize / 2,
+                backgroundColor: colors.secondary,
+                alignItems: 'center',
+                justifyContent: 'center',
+              },
+            ]}
+          >
+            <Text style={{ color: '#fff', fontSize: avatarSize / 2, fontWeight: 'bold' }}>{initial}</Text>
+          </View>
+        )}
+
+        <View style={[styles.info, { marginLeft: 12 }]}>
+          <Text style={[styles.text, { color }]}>{username}</Text>
+          <Text style={[styles.subtitle, { color }]}>{email}</Text>
+        </View>
+      </TouchableOpacity>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-    marginLeft: 10
+    marginLeft: 10,
   },
   info: {
     flexDirection: 'column',

@@ -625,7 +625,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     width: "100%",
-    color: colors.mutedBlack,
+    color: colors.black,
   },
   objectiveBox: {
     marginTop: 8,

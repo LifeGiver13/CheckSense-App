@@ -13,23 +13,39 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Alert,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+
 import { useAuth } from "../../contexts/AuthContext";
 import { colors } from "../../theme/colors";
 import { API_BASE_URL } from "../../theme/constants";
 
-const CLASSES = ["Form 1", "Form 2", "Form 3", "Form 4", "Form 5", "Lower Sixth", "Upper Sixth"];
+const CLASSES = [
+  "Form 1",
+  "Form 2",
+  "Form 3",
+  "Form 4",
+  "Form 5",
+  "Lower Sixth",
+  "Upper Sixth",
+];
+
 const SCHOOLS = [
   "Government Bilingual High School, Yaoundé",
   "Government High School, Buea",
   "Sacred Heart College, Mankon",
   "St. Joseph's College, Sasse",
-  "Other"
+  "Other",
 ];
+
 const LANGUAGES = ["English", "French"];
 
 export default function AccountInformation() {
   const { user, token, updateUserProfile } = useAuth();
+  const router = useRouter();
+
+  const [username, setUsername] = useState("");
 
   const [profilePicture, setProfilePicture] = useState("");
   const [email, setEmail] = useState("");
@@ -41,6 +57,7 @@ export default function AccountInformation() {
 
   const [availableSubjects, setAvailableSubjects] = useState([]);
   const [loadingSubjects, setLoadingSubjects] = useState(false);
+
   const [saving, setSaving] = useState(false);
   const [uploadingProfilePic, setUploadingProfilePic] = useState(false);
 
@@ -48,85 +65,111 @@ export default function AccountInformation() {
   const [pendingNavigation, setPendingNavigation] = useState(null);
 
   const initialValuesRef = useRef(null);
-    const [username, setUsername] = useState('');
-    const router = useRouter()
 
- useEffect(() => {
+  // Load username
+  useEffect(() => {
     const loadUser = async () => {
       try {
-        const userData = await AsyncStorage.getItem('auth_user');
+        const userData = await AsyncStorage.getItem("auth_user");
         if (userData) {
           const parsed = JSON.parse(userData);
-          setUsername(parsed.username || '');
+          setUsername(parsed.username || "");
         }
       } catch (error) {
-        console.log('Failed to load user', error);
+        console.log("Failed to load user", error);
       }
     };
 
     loadUser();
   }, []);
+
   // Initialize form
   useEffect(() => {
-    if (user) {
-      const profile = user.profile || {};
-      setEmail(profile.email || "");
-      setPhone(profile.phoneNumber || "");
-      setSelectedClass(profile.defaultClass || "");
-      setSelectedSubjects(profile.subjects || []);
-      setSchool(profile.school || "");
-      setLanguage(profile.language || "English");
-      setProfilePicture(profile?.profilePic || "");
+    if (!user) return;
 
-      initialValuesRef.current = {
-        email: profile.email || "",
-        phone: profile.phone || "",
-        selectedClass: profile.defaultClass || "",
-        selectedSubjects: profile.subjects || [],
-        school: profile.school || "",
-        language: profile.language || "English",
-        profilePicture: profile.avatar || "",
-      };
-    }
+    const profile = user.profile || {};
+
+    const initial = {
+      email: profile.email || "",
+      phone: profile.phoneNumber || "",
+      selectedClass: profile.defaultClass || "",
+      selectedSubjects: profile.subjects || [],
+      school: profile.school || "",
+      language: profile.language || "English",
+      profilePicture: profile.profilePic || "",
+    };
+
+    setEmail(initial.email);
+    setPhone(initial.phone);
+    setSelectedClass(initial.selectedClass);
+    setSelectedSubjects(initial.selectedSubjects);
+    setSchool(initial.school);
+    setLanguage(initial.language);
+    setProfilePicture(initial.profilePicture);
+
+    initialValuesRef.current = initial;
   }, [user]);
 
-  // Fetch subjects when class changes
+  // Fetch subjects
   useEffect(() => {
+    if (!selectedClass) {
+      setAvailableSubjects([]);
+      return;
+    }
+
     const fetchSubjects = async () => {
-      if (!selectedClass) {
-        setAvailableSubjects([]);
-        return;
-      }
       setLoadingSubjects(true);
+
       try {
-        const response = await fetch(`${API_BASE_URL}/subjects?classLevel=${encodeURIComponent(selectedClass)}`);
-        const data = await response.json();
-        const subjects = data?.data
-          ?.filter(s => s.classLevel === selectedClass)
-          ?.map(s => s.name) || [];
+        const res = await fetch(
+          `${API_BASE_URL}/subjects?classLevel=${encodeURIComponent(
+            selectedClass
+          )}`
+        );
+
+        const data = await res.json();
+
+        const subjects =
+          data?.data
+            ?.filter((s) => s.classLevel === selectedClass)
+            ?.map((s) => s.name) || [];
+
         setAvailableSubjects(subjects.sort());
-      } catch (err) {
-        console.error(err);
+      } catch (error) {
+        console.log(error);
       } finally {
         setLoadingSubjects(false);
       }
     };
+
     fetchSubjects();
   }, [selectedClass]);
 
+  // Unsaved changes
   const hasUnsavedChanges = useCallback(() => {
     if (!initialValuesRef.current) return false;
+
     const initial = initialValuesRef.current;
+
     return (
       email !== initial.email ||
       phone !== initial.phone ||
       selectedClass !== initial.selectedClass ||
-      JSON.stringify([...selectedSubjects].sort()) !== JSON.stringify([...initial.selectedSubjects].sort()) ||
+      JSON.stringify(selectedSubjects.sort()) !==
+        JSON.stringify(initial.selectedSubjects.sort()) ||
       school !== initial.school ||
       language !== initial.language ||
       profilePicture !== initial.profilePicture
     );
-  }, [email, phone, selectedClass, selectedSubjects, school, language, profilePicture]);
+  }, [
+    email,
+    phone,
+    selectedClass,
+    selectedSubjects,
+    school,
+    language,
+    profilePicture,
+  ]);
 
   const handleNavigation = (path) => {
     if (hasUnsavedChanges()) {
@@ -142,181 +185,307 @@ export default function AccountInformation() {
     if (pendingNavigation) pendingNavigation();
   };
 
+  // Save profile
   const handleSaveChanges = async () => {
     if (!user || !token) return;
+
     setSaving(true);
+
     try {
       const updatedProfile = {
-        ...user.profile,
         email,
-        phone,
+        phoneNumber: phone,
         defaultClass: selectedClass,
         subjects: selectedSubjects,
         school,
         language,
-        avatar: profilePicture,
+        profilePic: profilePicture,
       };
 
-      const response = await fetch(`${API_BASE_URL}/v2/users/${user.id}`, {
+      const res = await fetch(`${API_BASE_URL}/v2/users/${user.id}`, {
         method: "PUT",
         headers: {
-          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ ...user, profile: updatedProfile }),
+        body: JSON.stringify({
+          ...user,
+          profile: updatedProfile,
+        }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        updateUserProfile(data.profile || updatedProfile);
-        initialValuesRef.current = { ...updatedProfile };
-        alert("Profile updated successfully!");
-        if (pendingNavigation) pendingNavigation();
-      } else {
-        alert("Failed to save changes");
-      }
-    } catch (err) {
-      console.error(err);
-      alert("Failed to save changes");
+      if (!res.ok) throw new Error();
+
+      const data = await res.json();
+
+      updateUserProfile(data.profile || updatedProfile);
+
+      initialValuesRef.current = { ...updatedProfile };
+
+      Alert.alert("Success", "Profile updated successfully");
+
+      if (pendingNavigation) pendingNavigation();
+    } catch {
+      Alert.alert("Error", "Failed to save profile");
     } finally {
       setSaving(false);
     }
   };
 
+  // Toggle subject
   const toggleSubject = (subject) => {
-    setSelectedSubjects(prev =>
-      prev.includes(subject) ? prev.filter(s => s !== subject) : [...prev, subject]
+    setSelectedSubjects((prev) =>
+      prev.includes(subject)
+        ? prev.filter((s) => s !== subject)
+        : [...prev, subject]
     );
   };
 
   const handleProfilePictureChange = async (uri) => {
     if (!user || !token) return;
-    setProfilePicture(uri);
 
+    const previous = profilePicture;
+
+
+    setProfilePicture(uri);
+    setUploadingProfilePic(true);
+
+    try {
+      const formData = new FormData();
+
+      // extract file type from uri
+      const fileType = uri.split(".").pop()?.toLowerCase();
+
+      const mimeType =
+        fileType === "png"
+          ? "image/png"
+          : fileType === "jpg" || fileType === "jpeg"
+          ? "image/jpeg"
+          : fileType === "webp"
+          ? "image/webp"
+          : "image/jpeg";
+
+      formData.append("profilePic", {
+        uri,
+        name: `profile.${fileType || "jpg"}`,
+        type: mimeType,
+      });
+    const res = await fetch(`${API_BASE_URL}/v2/users/${user.uid}/profile-pic`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+      body: formData,
+    });
+
+    const text = await res.text();
+    console.log("UPLOAD RESPONSE:", text);
+
+    let data;
+
+    try {
+      data = JSON.parse(text);
+    } catch {
+      throw new Error("Server did not return JSON");
+    }
+
+    if (!res.ok) throw new Error(data?.message || "Upload failed");
+
+    setProfilePicture(data?.data?.profilePic);
+    updateUserProfile({
+      ...user.profile,
+      profilePic: data?.data?.profilePic 
+    });
+    } catch (err) {
+      console.log(err);
+      setProfilePicture(previous);
+      Alert.alert("Upload Failed", "Could not upload profile picture.");
+    } finally {
+      setUploadingProfilePic(false);
+    }
+  };
+  // Pick image
+  const pickImage = async () => {
+    const permission =
+      await ImagePicker.requestMediaLibraryPermissionsAsync();
+
+    if (!permission.granted) {
+      Alert.alert("Permission required", "Allow access to photos.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.7,
+    });
+
+    if (!result.canceled) {
+      handleProfilePictureChange(result.assets[0].uri);
+    }
   };
 
   const renderCheckbox = (subject) => (
     <TouchableOpacity
       key={subject}
-      onPress={() => toggleSubject(subject)}
       style={styles.checkboxContainer}
+      onPress={() => toggleSubject(subject)}
     >
-      <View style={[styles.checkbox, selectedSubjects.includes(subject) && styles.checkboxChecked]}>
-        {selectedSubjects.includes(subject) && <Feather name="check" size={16} color="white" />}
+      <View
+        style={[
+          styles.checkbox,
+          selectedSubjects.includes(subject) && styles.checkboxChecked,
+        ]}
+      >
+        {selectedSubjects.includes(subject) && (
+          <Feather name="check" size={14} color="#fff" />
+        )}
       </View>
-      <Text>{subject}</Text>
+
+      <Text style={styles.checkboxLabel}>{subject}</Text>
     </TouchableOpacity>
   );
 
   return (
     <ScrollView style={styles.container}>
-      {/* Header */}
       <Text style={styles.header}>Account Information</Text>
 
       {/* Profile */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Profile Details</Text>
+        <Text style={styles.sectionTitle}>Profile</Text>
 
-        <TouchableOpacity style={styles.profilePicContainer}>
-          {profilePicture ? (
-            <Image source={{ uri: profilePicture }} style={styles.profilePic} />
+        <TouchableOpacity
+          style={styles.profilePicContainer}
+          onPress={pickImage}
+        >
+          {uploadingProfilePic ? (
+            <ActivityIndicator color={colors.primaryDark} />
+          ) : profilePicture ? (
+            <Image
+              source={{ uri: profilePicture }}
+              style={styles.profilePic}
+            />
           ) : (
-            <Text style={styles.profileInitial}>U</Text>
+            <Text style={styles.profileInitial}>
+              {username?.charAt(0)?.toUpperCase() || "U"}
+            </Text>
           )}
         </TouchableOpacity>
-        <View>
-        <Text style={styles.title}>Acccount Name</Text>
-          <TextInput
-          placeholder="Username"
+
+        <Text style={styles.label}>Username</Text>
+        <TextInput
           value={username}
-          style={styles.input}
           editable={false}
+          style={[styles.input, styles.disabledInput]}
         />
-        </View>
-        <View>
-        <Text style={styles.title}>Email Address</Text>
-        <TextInput
-          placeholder="Email"
-          value={email}
-          onChangeText={setEmail}
-          style={styles.input}
-        />
-        </View>
-        <View>
-        <Text style={styles.title}>Phone Number</Text>
-        <TextInput
-          placeholder="Phone"
-          value={phone}
-          onChangeText={setPhone}
-          style={styles.input}
-        />
-        </View>
+
+        <Text style={styles.label}>Email</Text>
+        <TextInput value={email} onChangeText={setEmail} style={styles.input} />
+
+        <Text style={styles.label}>Phone</Text>
+        <TextInput value={phone} onChangeText={setPhone} style={styles.input} />
       </View>
 
-      {/* Study Details */}
+      {/* Study */}
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Study Details</Text>
-        <View>
-        <Text style={styles.title}>Class</Text>
-        </View>
-        <Picker selectedValue={selectedClass} onValueChange={setSelectedClass} style={styles.picker}>
-          <Picker.Item label="Select Class" value="" />
-          {CLASSES.map(cls => <Picker.Item key={cls} label={cls} value={cls} />)}
-        </Picker>
-           
-         <View style={{ height: 1, backgroundColor: '#ccc', marginVertical: 10 }} />
-         <View>
-        <Text style={styles.title} >Subjects</Text>
-        <Text style={styles.subtitle}>Select the subjects you study (these will appear in Quiz Setup)</Text>
 
-        </View>
+        <Text style={styles.label}>Class</Text>
+
+        <Picker
+          selectedValue={selectedClass}
+          onValueChange={setSelectedClass}
+          style={styles.picker}
+        >
+          <Picker.Item label="Select Class" value="" />
+
+          {CLASSES.map((cls) => (
+            <Picker.Item key={cls} label={cls} value={cls} />
+          ))}
+        </Picker>
+
+        <Text style={styles.label}>Subjects</Text>
+
         {loadingSubjects ? (
           <ActivityIndicator />
-        ) : availableSubjects.length > 0 ? (
-          availableSubjects.map(renderCheckbox)
         ) : (
-          <Text>No subjects available</Text>
+          availableSubjects.map(renderCheckbox)
         )}
-        <View style={{ height: 1, backgroundColor: '#ccc', marginVertical: 10 }} />
-        <View>
-        <Text style={styles.title}>School (Optional)</Text>
-        </View>
-        <Picker selectedValue={school} onValueChange={setSchool} style={styles.picker}>
+
+        <Text style={styles.label}>School</Text>
+
+        <Picker
+          selectedValue={school}
+          onValueChange={setSchool}
+          style={styles.picker}
+        >
           <Picker.Item label="Select School" value="" />
-          {SCHOOLS.map(s => <Picker.Item key={s} label={s} value={s} />)}
+
+          {SCHOOLS.map((s) => (
+            <Picker.Item key={s} label={s} value={s} />
+          ))}
         </Picker>
       </View>
 
       {/* Language */}
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>General Settings</Text>
-        <Picker selectedValue={language} onValueChange={setLanguage} style={styles.picker}>
-          {LANGUAGES.map(l => <Picker.Item key={l} label={l} value={l} />)}
+        <Text style={styles.sectionTitle}>Language</Text>
+
+        <Picker
+          selectedValue={language}
+          onValueChange={setLanguage}
+          style={styles.picker}
+        >
+          {LANGUAGES.map((l) => (
+            <Picker.Item key={l} label={l} value={l} />
+          ))}
         </Picker>
       </View>
 
-      {/* Actions */}
+      {/* Buttons */}
       <View style={styles.actions}>
-        <TouchableOpacity style={styles.button} onPress={() => handleNavigation("/settings")}>
-          <Text style={styles.buttonText}>Back</Text>
+        <TouchableOpacity
+          style={styles.secondaryButton}
+          onPress={() => handleNavigation("/settings")}
+        >
+          <Text style={styles.secondaryText}>Back</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.button, styles.saveButton]} onPress={handleSaveChanges} disabled={saving}>
-          {saving ? <ActivityIndicator color="white" /> : <Text style={styles.buttonText}>Save Changes</Text>}
+
+        <TouchableOpacity
+          style={styles.primaryButton}
+          onPress={handleSaveChanges}
+        >
+          {saving ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.primaryText}>Save Changes</Text>
+          )}
         </TouchableOpacity>
       </View>
 
-      {/* Unsaved Changes Modal */}
+      {/* Unsaved modal */}
       <Modal visible={showUnsavedDialog} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+          <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>Unsaved Changes</Text>
-            <Text>Do you want to save changes before leaving?</Text>
+
+            <Text style={styles.modalText}>
+              Save changes before leaving?
+            </Text>
+
             <View style={styles.modalActions}>
-              <TouchableOpacity onPress={() => setShowUnsavedDialog(false)} style={styles.button}>
-                <Text>Cancel</Text>
+              <TouchableOpacity
+                style={styles.secondaryButton}
+                onPress={() => setShowUnsavedDialog(false)}
+              >
+                <Text style={styles.secondaryText}>Cancel</Text>
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleDiscardChanges} style={[styles.button, styles.saveButton]}>
-                <Text style={{ color: "white" }}>Discard / Save & Continue</Text>
+
+              <TouchableOpacity
+                style={styles.primaryButton}
+                onPress={handleDiscardChanges}
+              >
+                <Text style={styles.primaryText}>Continue</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -327,26 +496,171 @@ export default function AccountInformation() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 16, backgroundColor: colors.white, marginBottom: 0, width: '100%'},
-  header: { fontSize: 24, fontWeight: "bold", marginBottom: 16 },
-  card: { padding: 16, backgroundColor: colors.mutedWhite, marginBottom: 16, borderRadius: 8 },
-  sectionTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 8 },
-  input: { borderWidth: 1, borderColor: colors.mutedBlack, borderRadius: 6, padding: 8, marginBottom: 12 },
-  picker: { borderWidth: 1, borderColor: colors.mutedBlack, borderRadius: 6, marginBottom: 12 },
-  profilePicContainer: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.mutedWhite, marginBottom: 12, justifyContent: "center", alignItems: "center", borderWidth:1, borderBlockColor: colors.secondary },
-  profilePic: { width: 80, height: 80, borderRadius: 40, borderWidth:1, borderBlockColor: colors.secondary },
-  profileInitial: { fontSize: 32, fontWeight: "bold", borderWidth:1, borderBlockColor: colors.secondary },
-  actions: { flexDirection: "row", justifyContent: "space-between", marginTop: 16,marginBottom: 50 },
-  button: { padding: 12, borderRadius: 6, backgroundColor: colors.primaryDark, alignItems: "center", flex: 1, marginHorizontal: 4 },
-  saveButton: { backgroundColor: colors.primaryDark },
-  buttonText: { color: colors.white, fontWeight: "bold" },
-  checkboxContainer: { flexDirection: "row", alignItems: "center", marginBottom: 6 },
-  checkbox: { width: 20, height: 20, borderWidth: 1, borderColor: colors.mutedBlack, marginRight: 8, justifyContent: "center", alignItems: "center" },
-  checkboxChecked: { backgroundColor: colors.primary, borderColor: colors.primaryDark },
-  modalOverlay: { flex: 1, backgroundColor: colors.black, justifyContent: "center", alignItems: "center" },
-  modalContent: { width: "80%", padding: 16, backgroundColor: "white", borderRadius: 8 },
-  modalTitle: { fontSize: 18, fontWeight: "bold", marginBottom: 8 },
-  modalActions: { flexDirection: "row", justifyContent: "space-between", marginTop: 16, marginBottom: 50 },
-  title: {fontSize: 14, fontWeight: 900, marginBottom:7},
-  subtitle:{fontSize: 10, marginBottom:7}
+
+container:{
+flex:1,
+backgroundColor:"#f6f8fc",
+padding:16
+},
+
+header:{
+fontSize:26,
+fontWeight:"700",
+marginBottom:20
+},
+
+card:{
+backgroundColor:"#fff",
+padding:18,
+borderRadius:14,
+marginBottom:20,
+shadowColor:"#000",
+shadowOpacity:0.05,
+shadowRadius:10,
+elevation:2
+},
+
+sectionTitle:{
+fontSize:18,
+fontWeight:"600",
+marginBottom:12
+},
+
+label:{
+fontSize:13,
+fontWeight:"600",
+marginBottom:6,
+color:"#555"
+},
+
+input:{
+borderWidth:1,
+borderColor:"#ddd",
+borderRadius:8,
+padding:10,
+marginBottom:14,
+backgroundColor:"#fff"
+},
+
+disabledInput:{
+backgroundColor:"#f1f1f1"
+},
+
+picker:{
+marginBottom:12
+},
+
+profilePicContainer:{
+width:90,
+height:90,
+borderRadius:45,
+alignSelf:"center",
+backgroundColor:"#f0f3ff",
+alignItems:"center",
+justifyContent:"center",
+marginBottom:14
+},
+
+profilePic:{
+width:90,
+height:90,
+borderRadius:45
+},
+
+profileInitial:{
+fontSize:34,
+fontWeight:"700",
+color:colors.primaryDark
+},
+
+checkboxContainer:{
+flexDirection:"row",
+alignItems:"center",
+marginBottom:8
+},
+
+checkbox:{
+width:18,
+height:18,
+borderRadius:4,
+borderWidth:1,
+borderColor:"#bbb",
+marginRight:10,
+alignItems:"center",
+justifyContent:"center"
+},
+
+checkboxChecked:{
+backgroundColor:colors.primaryDark,
+borderColor:colors.primaryDark
+},
+
+checkboxLabel:{
+fontSize:14
+},
+
+actions:{
+flexDirection:"row",
+justifyContent:"space-between",
+marginTop:10,
+marginBottom:40
+},
+
+primaryButton:{
+flex:1,
+backgroundColor:colors.primaryDark,
+padding:14,
+borderRadius:8,
+alignItems:"center",
+marginLeft:8
+},
+
+secondaryButton:{
+flex:1,
+borderWidth:1,
+borderColor:"#ddd",
+padding:14,
+borderRadius:8,
+alignItems:"center",
+marginRight:8
+},
+
+primaryText:{
+color:"#fff",
+fontWeight:"600"
+},
+
+secondaryText:{
+fontWeight:"600"
+},
+
+modalOverlay:{
+flex:1,
+backgroundColor:"rgba(0,0,0,0.4)",
+justifyContent:"center",
+alignItems:"center"
+},
+
+modalCard:{
+backgroundColor:"#fff",
+padding:20,
+borderRadius:12,
+width:"80%"
+},
+
+modalTitle:{
+fontSize:18,
+fontWeight:"700",
+marginBottom:10
+},
+
+modalText:{
+fontSize:14,
+marginBottom:16
+},
+
+modalActions:{
+flexDirection:"row"
+}
+
 });

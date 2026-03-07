@@ -149,9 +149,9 @@ export default function BrowseSubjects() {
             selectedValue={selectedSubject}
             onValueChange={setSelectedSubject}
             style={styles.picker}
-          >
-            <Picker.Item label="All subjects" value="" />
+          >         
             <Picker.Item label="My subjects" value="__MY__" />
+            <Picker.Item label="All subjects" value="" />
           </Picker>
 
           {loading && (
@@ -221,6 +221,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     backgroundColor: "#f5f5f5",
+    color: "#000",
     borderRadius: 8,
   },
   card: {

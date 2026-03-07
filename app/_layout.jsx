@@ -97,7 +97,7 @@ function DrawerContent() {
 
   const router = useRouter();
   const pathname = usePathname();
-  const { logout, isAuthenticated, isLoading, verifySession } = useAuth();
+  const { user, logout, isAuthenticated, isLoading, verifySession } = useAuth();
 
   const isActive = (route) => pathname === `/${route}`;
 
@@ -164,7 +164,7 @@ function DrawerContent() {
       <ScrollView contentContainerStyle={styles.sidebar}>
         <AppLogoPages color={textColor} />
         <View style={[styles.divider, { backgroundColor: dividerColor }]} />
-        {isAuthenticated && <Username color= {dividerColor}/>}
+        {isAuthenticated && <Username user={user} color= {dividerColor}/>}
         <View style={[styles.divider, { backgroundColor: dividerColor }]} />
 
         <View style={styles.drawerLinks}>
