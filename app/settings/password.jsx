@@ -156,8 +156,8 @@ export default function ChangePasswordScreen() {
 
 const styles = StyleSheet.create({
   container: { padding: 16, backgroundColor: colors.white, flexGrow: 1 },
-  backBtn: { flexDirection: "row", alignItems: "center", marginBottom: 16 },
-  backText: { marginLeft: 8, color: colors.black, fontSize: 16 },
+  backBtn: { flexDirection: "row", alignItems: "center", marginBottom: 16,   },
+  backText: { marginLeft: 8, color: colors.mutedBlack, fontSize: 16 },
   title: { fontSize: 28, fontWeight: "bold", color: colors.black, marginBottom: 4 },
   subtitle: { fontSize: 16, color: colors.mutedBlack, marginBottom: 16 },
   card: { padding: 16, backgroundColor: colors.white, borderRadius: 12, elevation: 2, shadowColor: "#000", shadowOpacity: 0.1, shadowOffset: { width: 0, height: 2 }, shadowRadius: 4 },

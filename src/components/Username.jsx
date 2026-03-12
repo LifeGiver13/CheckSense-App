@@ -1,5 +1,5 @@
-import { Image, StyleSheet, Text, View, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
+import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { colors } from '../../theme/colors.jsx';
 
 export default function Username({ user, color = colors.black, avatarSize = 50 }) {
@@ -7,7 +7,7 @@ export default function Username({ user, color = colors.black, avatarSize = 50 }
 
   const username = user?.username || '';
   const email = user?.email || '';
-  const avatar = user?.profile || null;
+  const avatar = user?.profile?.profilePic || null;
 
   // Get first letter for default avatar
   const initial = username?.charAt(0)?.toUpperCase() || 'U';

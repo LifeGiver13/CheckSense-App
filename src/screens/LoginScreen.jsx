@@ -84,7 +84,7 @@ export default function LoginScreen() {
           <Text style={styles.label}>Password</Text>
           <View style={styles.passwordWrapper}>
             <TextInput
-              style={[styles.input, { flex: 1 }]}
+              style={[styles.password, { flex: 1 }]}
               value={loginData.password}
               onChangeText={(text) => setLoginData({ ...loginData, password: text })}
               secureTextEntry={!showPassword}
@@ -112,12 +112,12 @@ export default function LoginScreen() {
         </Pressable>
 
         {/* Sign Up Link */}
-        {/* <View style={styles.bottomText}>
+        <View style={styles.bottomText}>
           <Text style={{ color: colors.black }}>Do not have an account? </Text>
           <Text style={styles.link} onPress={() => router.push('/register')}>
             Sign Up
           </Text>
-        </View> */}
+        </View>
 
         {/* Back to Home */}
         <Pressable style={styles.backButton} onPress={() => router.back()}>
@@ -181,19 +181,22 @@ const styles = StyleSheet.create({
   input: {
     padding: 12,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor:"#ddd",
     borderRadius: 6,
     color: colors.black,
     backgroundColor: colors.white,
   },
-  passwordWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.3)',
-    borderRadius: 6,
-    paddingHorizontal: 10,
-    backgroundColor: colors.white,
+  password:{
+  color: colors.mutedBlack
+  },
+ passwordWrapper:{
+  flexDirection:"row",
+  alignItems:"center",
+  borderWidth:1,
+  borderColor:"#ddd",
+  color: colors.mutedBlack,
+  borderRadius:6,
+  paddingHorizontal:10
   },
   eyeButton: {
     padding: 4,

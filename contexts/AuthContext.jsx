@@ -46,8 +46,10 @@ export const AuthProvider = ({ children }) => {
         const storedUser = await AsyncStorage.getItem("auth_user");
 
         if (storedToken && storedUser) {
+          const parsedUser = JSON.parse(storedUser);
           setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+          setUser(parsedUser);
+          setNeedsOnboarding(!parsedUser?.profile?.defaultClass);
 
           // Verify session with backend
           const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/verify-session`, {
@@ -62,6 +64,7 @@ export const AuthProvider = ({ children }) => {
             await AsyncStorage.removeItem("auth_user");
             setToken(null);
             setUser(null);
+            setNeedsOnboarding(false);
           }
         }
       } catch (err) {
@@ -70,6 +73,7 @@ export const AuthProvider = ({ children }) => {
         await AsyncStorage.removeItem("auth_user");
         setToken(null);
         setUser(null);
+        setNeedsOnboarding(false);
       } finally {
         setIsLoading(false);
       }
@@ -96,7 +100,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem("auth_token", data.token);
       await AsyncStorage.setItem("auth_user", JSON.stringify(data.user));
 
-      if (!data.user?.profile?.defaultClass) setNeedsOnboarding(true);
+      setNeedsOnboarding(!data.user?.profile?.defaultClass);
 
       return { success: true };
     } catch (err) {
@@ -151,6 +155,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.removeItem("auth_user");
       setToken(null);
       setUser(null);
+      setNeedsOnboarding(false);
     }
   };
 

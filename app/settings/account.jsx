@@ -1,10 +1,12 @@
 import { Feather } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Picker } from "@react-native-picker/picker";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Image,
   Modal,
   ScrollView,
@@ -13,9 +15,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
-  Alert,
 } from "react-native";
-import * as ImagePicker from "expo-image-picker";
 
 import { useAuth } from "../../contexts/AuthContext";
 import { colors } from "../../theme/colors";
@@ -50,7 +50,7 @@ export default function AccountInformation() {
   const [profilePicture, setProfilePicture] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [selectedClass, setSelectedClass] = useState("");
+  const [selectedClass, setSelectedClass] = useState("Form 1");
   const [selectedSubjects, setSelectedSubjects] = useState([]);
   const [school, setSchool] = useState("");
   const [language, setLanguage] = useState("English");
@@ -226,7 +226,7 @@ export default function AccountInformation() {
 
       if (pendingNavigation) pendingNavigation();
     } catch {
-      Alert.alert("Error", "Failed to save profile");
+      Alert.alert("Error", "Failed to save profile, try again.");
     } finally {
       setSaving(false);
     }
@@ -380,10 +380,10 @@ export default function AccountInformation() {
         />
 
         <Text style={styles.label}>Email</Text>
-        <TextInput value={email} onChangeText={setEmail} style={styles.input} />
+        <TextInput value={email} onChangeText={setEmail} style={styles.input} placeholder="Enter your email." placeholderTextColor={colors.mutedBlack} />
 
-        <Text style={styles.label}>Phone</Text>
-        <TextInput value={phone} onChangeText={setPhone} style={styles.input} />
+        <Text style={styles.label}>Phone Number</Text>
+        <TextInput value={phone} onChangeText={setPhone} style={styles.input} placeholder="Enter your Phone Number." placeholderTextColor={colors.mutedBlack} />
       </View>
 
       {/* Study */}
@@ -547,7 +547,8 @@ backgroundColor:"#f1f1f1"
 },
 
 picker:{
-marginBottom:12
+marginBottom:12,
+color: colors.mutedBlack
 },
 
 profilePicContainer:{

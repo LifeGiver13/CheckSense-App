@@ -1,8 +1,8 @@
 import { Feather } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LinearGradient } from 'expo-linear-gradient';
-import { StatusBar } from 'expo-status-bar';
 import { useRouter } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { colors } from '../../theme/colors.jsx';
@@ -14,24 +14,17 @@ export default function LandingScreen() {
   
       const [username, setUsername] = useState('');
     
-      useEffect(() => {
-        const loadUser = async () => {
-          try {
-            const userData = await AsyncStorage.getItem('auth_user') || null;
-            if (userData) {
-              const parsed = JSON.parse(userData);
-              setUsername(parsed.username || '');
-            }
-            if(username){
-              router.replace('/dashboard')
-            }
-          } catch (error) {
-            console.log('Failed to load user', error);
-          }
-        };
-    
-        loadUser();
-      }, []);
+    useEffect(() => {
+  const checkUser = async () => {
+    const userData = await AsyncStorage.getItem('auth_user');
+
+    if (userData) {
+      router.replace('/dashboard');
+    }
+  };
+
+  checkUser();
+}, []);
     
   return (
     <LinearGradient
@@ -45,9 +38,9 @@ export default function LandingScreen() {
          <AppLogo />
 
         <View style={styles.headerActions}>
-          {/* <Text style={styles.headerLink} onPress={() => router.push('/register')}>
-            Sign Up
-          </Text> */}
+          <Text style={styles.headerLink} onPress={() => router.push('/register')}>
+            Sign Up 
+          </Text>
 
           <Text style={styles.headerButton} onPress={() => router.push('/login')}>
             Login

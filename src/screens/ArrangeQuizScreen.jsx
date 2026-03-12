@@ -19,6 +19,8 @@ import { colors } from "../../theme/colors.jsx";
 import Duration from "../components/Duration.jsx";
 import QuizType from "../components/QuizType.jsx";
 
+import OnboardingModal from "../components/OnboardingModal.jsx";
+
 const CLASSES = [
   "Form 1",
   "Form 2",
@@ -61,7 +63,19 @@ export default function ArrangeQuiz() {
   const visibleTopics = topics.slice(0, MAX_PICKER_ITEMS);
   const visibleSubtopics = subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER);
 
+  ////
+const { needsOnboarding, setNeedsOnboarding } = useAuth();  
+  // console.log("USER PROFILE:", user?.profile);
 
+  // useEffect(() => {
+  //   if (!user) return;
+
+  //   const needsOnboarding = !user?.profile?.defaultClass;
+
+  //   if (needsOnboarding) {
+  //     setShowOnboarding(true);
+  //   }
+  // }, [user]);
   // Fetch subjects
   useFocusEffect(
     useCallback(() => {
@@ -160,10 +174,16 @@ export default function ArrangeQuiz() {
   };
 
   return (
+    <>
+<OnboardingModal
+      visible={needsOnboarding}
+      onClose={() => setNeedsOnboarding(false)}
+    />
     <ScrollView contentContainerStyle={styles.container}>
       {/* <View style={styles.topHeader}>
         <AppLogoPages />
       </View> */}
+      
 
       <View style={styles.arrangeQuiz}>
         <Text style={styles.title}>Arrange Your Quiz</Text>
@@ -322,6 +342,8 @@ export default function ArrangeQuiz() {
         <Text style={styles.continueText}>Continue</Text>
       </Pressable>
     </ScrollView>
+   </>
+
   );
 }
 
