@@ -38,6 +38,9 @@ export const AuthProvider = ({ children }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
+  const computeNeedsOnboarding = (profile) =>
+    !profile?.defaultClass || !(profile?.subjects?.length);
+
   // Load stored auth data and verify session
   useEffect(() => {
     const initializeAuth = async () => {
@@ -49,7 +52,7 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(storedUser);
           setToken(storedToken);
           setUser(parsedUser);
-          setNeedsOnboarding(!parsedUser?.profile?.defaultClass);
+          setNeedsOnboarding(computeNeedsOnboarding(parsedUser?.profile?.defaultClass));
 
           // Verify session with backend
           const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/verify-session`, {
@@ -100,7 +103,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem("auth_token", data.token);
       await AsyncStorage.setItem("auth_user", JSON.stringify(data.user));
 
-      setNeedsOnboarding(!data.user?.profile?.defaultClass);
+      setNeedsOnboarding(computeNeedsOnboarding(data.user?.profile?.defaultClass));
 
       return { success: true };
     } catch (err) {
@@ -198,6 +201,7 @@ export const AuthProvider = ({ children }) => {
 
     const updatedUser = { ...user, profile: { ...(user.profile || {}), ...profileData } };
     setUser(updatedUser);
+    setNeedsOnboarding(computeNeedsOnboarding(updatedUser?.profile));
     await AsyncStorage.setItem("auth_user", JSON.stringify(updatedUser));
   };
 

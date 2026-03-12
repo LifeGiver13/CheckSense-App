@@ -1,5 +1,5 @@
 import { Picker } from "@react-native-picker/picker";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -35,13 +35,14 @@ const MAX_SUBTOPICS_TO_RENDER = 80;
 const MAX_SUBTOPICS_TO_SEND = 120;
 
 export default function ArrangeQuiz() {
-  const { user } = useAuth();
+  const { user, needsOnboarding, setNeedsOnboarding } = useAuth();
   const { getSubjects, getTopics } = useCurriculum();
 
-  const router = useRouter()
-  const { setQuizConfig } = useQuizGeneration()
+  const router = useRouter();
+  const { setQuizConfig } = useQuizGeneration();
   const userProfile = user?.profile || {};
   const userDefaultClass = userProfile?.defaultClass;
+  const hasSelectedClassRef = useRef(false);
 
   const [selectedClass, setSelectedClass] = useState(
     userDefaultClass || "Upper Sixth"
@@ -63,9 +64,18 @@ export default function ArrangeQuiz() {
   const visibleTopics = topics.slice(0, MAX_PICKER_ITEMS);
   const visibleSubtopics = subtopics.slice(0, MAX_SUBTOPICS_TO_RENDER);
 
-  ////
-const { needsOnboarding, setNeedsOnboarding } = useAuth();  
-  // console.log("USER PROFILE:", user?.profile);
+  useEffect(() => {
+    if (!userDefaultClass) return;
+    if (hasSelectedClassRef.current) return;
+    if (selectedClass === userDefaultClass) return;
+
+    setSelectedClass(userDefaultClass);
+    setSelectedSubject("");
+    setSelectedTopic("");
+    setSelectedSubtopics([]);
+    setTopics([]);
+    setSubtopics([]);
+  }, [selectedClass, userDefaultClass]);
 
   // useEffect(() => {
   //   if (!user) return;
@@ -169,17 +179,15 @@ const { needsOnboarding, setNeedsOnboarding } = useAuth();
     });
 
     router.replace("/quiz-generating");
-
-
   };
 
   return (
     <>
-<OnboardingModal
-      visible={needsOnboarding}
-      onClose={() => setNeedsOnboarding(false)}
-    />
-    <ScrollView contentContainerStyle={styles.container}>
+      <OnboardingModal
+        visible={needsOnboarding}
+        onClose={() => setNeedsOnboarding(false)}
+      />
+      <ScrollView contentContainerStyle={styles.container}>
       {/* <View style={styles.topHeader}>
         <AppLogoPages />
       </View> */}
@@ -199,6 +207,7 @@ const { needsOnboarding, setNeedsOnboarding } = useAuth();
       <Picker
         selectedValue={selectedClass}
         onValueChange={(val) => {
+          hasSelectedClassRef.current = true;
           setSelectedClass(val);
           setSelectedSubject("");
           setSelectedTopic("");
@@ -341,8 +350,8 @@ const { needsOnboarding, setNeedsOnboarding } = useAuth();
       <Pressable style={styles.continueBtn} onPress={handleContinue}>
         <Text style={styles.continueText}>Continue</Text>
       </Pressable>
-    </ScrollView>
-   </>
+      </ScrollView>
+    </>
 
   );
 }
