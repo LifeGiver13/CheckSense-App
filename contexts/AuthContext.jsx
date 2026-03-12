@@ -52,7 +52,7 @@ export const AuthProvider = ({ children }) => {
           const parsedUser = JSON.parse(storedUser);
           setToken(storedToken);
           setUser(parsedUser);
-          setNeedsOnboarding(computeNeedsOnboarding(parsedUser?.profile?.defaultClass));
+          setNeedsOnboarding(computeNeedsOnboarding(parsedUser?.profile));
 
           // Verify session with backend
           const res = await fetchWithTimeout(`${API_BASE_URL}/v2/auth/verify-session`, {
@@ -103,7 +103,7 @@ export const AuthProvider = ({ children }) => {
       await AsyncStorage.setItem("auth_token", data.token);
       await AsyncStorage.setItem("auth_user", JSON.stringify(data.user));
 
-      setNeedsOnboarding(computeNeedsOnboarding(data.user?.profile?.defaultClass));
+      setNeedsOnboarding(computeNeedsOnboarding(data.user?.profile));
 
       return { success: true };
     } catch (err) {

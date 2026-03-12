@@ -146,11 +146,11 @@ export default function QuizScreen() {
   const saqStatus =
     isSAQ && maxMarks > 0
       ? marksAwarded >= maxMarks
-        ? "Full marks!"
+        ? "Excellent! You got full marks 🎉"
         : marksAwarded > 0
-          ? "Partially correct"
-          : "Needs improvement"
-      : "Reviewed";
+          ? "Good effort! You're on the right track 👍"
+          : "Nice try! Give it another go and you'll get it 💪"
+      : "Your Answer Was Reviewed ✔️";
 
   const isReviewingCurrentAnswer =
     !isExamMode &&

@@ -539,7 +539,8 @@ borderColor:"#ddd",
 borderRadius:8,
 padding:10,
 marginBottom:14,
-backgroundColor:"#fff"
+backgroundColor:"#fff",
+color: colors.black
 },
 
 disabledInput:{

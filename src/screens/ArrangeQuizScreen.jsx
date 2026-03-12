@@ -19,7 +19,6 @@ import { colors } from "../../theme/colors.jsx";
 import Duration from "../components/Duration.jsx";
 import QuizType from "../components/QuizType.jsx";
 
-import OnboardingModal from "../components/OnboardingModal.jsx";
 
 const CLASSES = [
   "Form 1",
@@ -35,7 +34,7 @@ const MAX_SUBTOPICS_TO_RENDER = 80;
 const MAX_SUBTOPICS_TO_SEND = 120;
 
 export default function ArrangeQuiz() {
-  const { user, needsOnboarding, setNeedsOnboarding } = useAuth();
+  const { user } = useAuth();
   const { getSubjects, getTopics } = useCurriculum();
 
   const router = useRouter();
@@ -183,10 +182,7 @@ export default function ArrangeQuiz() {
 
   return (
     <>
-      <OnboardingModal
-        visible={needsOnboarding}
-        onClose={() => setNeedsOnboarding(false)}
-      />
+     
       <ScrollView contentContainerStyle={styles.container}>
       {/* <View style={styles.topHeader}>
         <AppLogoPages />

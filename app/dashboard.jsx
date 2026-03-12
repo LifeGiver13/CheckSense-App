@@ -1,34 +1,23 @@
 import { Feather } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useAuth } from '../contexts/AuthContext.jsx';
 import ActionCard from '../src/components/ActionCard.jsx';
+import OnboardingModal from "../src/components/OnboardingModal.jsx";
 import { colors } from '../theme/colors.jsx';
+
+
 export default function Dashboard() {
     const router = useRouter()
-    const [username, setUsername] = useState('');
-
-
-
-    useEffect(() => {
-        const loadUser = async () => {
-            try {
-                const userData = await AsyncStorage.getItem('auth_user');
-                if (userData) {
-                    const parsed = JSON.parse(userData);
-                    setUsername(parsed.username || '');
-                }
-            } catch (error) {
-                console.log('Failed to load user', error);
-            }
-        };
-
-        loadUser();
-    }, []);
+    const { user, needsOnboarding, setNeedsOnboarding } = useAuth();
+    const username = user?.username
 
     return (
-
+<>
+ <OnboardingModal
+        visible={needsOnboarding}
+        onClose={() => setNeedsOnboarding(false)}
+      />
         <ScrollView contentContainerStyle={styles.content}>
             <View style={styles.userMsg}>
                 <Text style={styles.title}>Hi, {username}!</Text>
@@ -77,7 +66,7 @@ export default function Dashboard() {
                 <ActionCard
                     icon={<Feather name='help-circle' size={28} color={colors.black} />}
                     title="Explore Quizzes"
-                    description="Browse your past quizzes"
+                    description="Browse your past quizzes, and either Review or Retake them"
                     buttons={[
                         {
                             label: "Browser Your Past Quizzes",
@@ -105,6 +94,7 @@ export default function Dashboard() {
 
             </View>
         </ScrollView>
+        </>
     );
 }
 

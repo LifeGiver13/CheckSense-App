@@ -20,6 +20,7 @@ import { LevelProgressProvider } from '../contexts/LevelProgressContext.jsx';
 import { QuizGenerationProvider } from '../contexts/QuizgenerationContext.jsx';
 import { QuizSessionProvider } from '../contexts/QuizSessionContext.jsx';
 
+import { ProfileProvider } from '../contexts/ProfileContext.jsx';
 import AppLogoPages from '../src/components/AppLogoPages.jsx';
 import Username from '../src/components/Username.jsx';
 import { colors } from '../theme/colors.jsx';
@@ -37,6 +38,7 @@ export default function RootLayout() {
           <QuizGenerationProvider>
             <LevelProgressProvider>
               <QuizSessionProvider>
+                <ProfileProvider>
                 <Drawer
                   screenOptions={({ navigation }) => ({
                     headerShown: true,
@@ -79,6 +81,7 @@ export default function RootLayout() {
                     options={{ title: 'Settings' }}
                   />
                 </Drawer>
+                </ProfileProvider>
               </QuizSessionProvider>
             </LevelProgressProvider>
           </QuizGenerationProvider>
