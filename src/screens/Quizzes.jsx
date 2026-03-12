@@ -276,37 +276,57 @@ const styles = StyleSheet.create({
         justifyContent: "center",
     },
     title: {
-        fontSize: 28,
-        fontWeight: "bold",
-        marginBottom: 16,
+        fontSize: 30,
+        fontWeight: "700",
+        marginBottom: 18,
+        color: colors.black,
     },
     tabs: {
         flexDirection: "row",
-        marginBottom: 16,
+        marginBottom: 18,
+        backgroundColor: "#f3f5f9",
+        borderRadius: 10,
+        padding: 4,
     },
+
     tab: {
         flex: 1,
-        padding: 10,
-        borderBottomWidth: 2,
-        borderColor: colors.mutedWhite,
+        paddingVertical: 8,
+        borderRadius: 8,
         alignItems: "center",
     },
+
     tabActive: {
-        borderColor: colors.black,
+        backgroundColor: colors.white,
+        shadowColor: "#000",
+        shadowOpacity: 0.08,
+        shadowRadius: 4,
+        elevation: 2,
     },
+
     tabText: {
+        fontSize: 13,
         color: colors.mutedBlack,
     },
+
     tabTextActive: {
         color: colors.black,
-        fontWeight: "bold",
+        fontWeight: "600",
     },
     card: {
-        padding: 16,
+        padding: 18,
         backgroundColor: colors.white,
-        borderRadius: 8,
-        marginBottom: 12,
-        elevation: 2,
+        borderRadius: 12,
+        marginBottom: 14,
+
+        shadowColor: "#000",
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        shadowOffset: { width: 0, height: 2 },
+
+        elevation: 3,
+        borderWidth: 1,
+        borderColor: "#f0f0f0"
     },
     subject: {
         fontSize: 18,
@@ -317,24 +337,26 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     buttonContinue: {
+        flex: 1,
         flexDirection: "row",
         backgroundColor: colors.primaryDark,
-        padding: 10,
-        borderRadius: 6,
+        paddingVertical: 10,
+        borderRadius: 8,
         alignItems: "center",
         justifyContent: "center",
         gap: 6,
     },
     buttonDismiss: {
+        flex: 1,
         flexDirection: "row",
         backgroundColor: colors.white,
-        padding: 10,
-        borderRadius: 6,
+        paddingVertical: 10,
+        borderRadius: 8,
         alignItems: "center",
         justifyContent: "center",
         gap: 6,
         borderColor: colors.black,
-        borderWidth: 1
+        borderWidth: 1,
     },
     buttonTextContinue: {
         color: colors.white,
@@ -346,31 +368,34 @@ const styles = StyleSheet.create({
     },
     empty: {
         textAlign: "center",
-        marginTop: 40,
-        color: colors.mutedWhite,
+        marginTop: 60,
+        fontSize: 15,
+        color: colors.mutedBlack,
+        opacity: 0.7,
     },
     pagination: {
         flexDirection: "row",
         justifyContent: "space-between",
-        paddingVertical: 12,
+        alignItems: "center",
+        paddingVertical: 14,
+        borderTopWidth: 1,
+        borderColor: "#f0f0f0",
+        marginTop: 10,
     },
     subtitle: {
         fontSize: 9
     },
     buttonContainer: {
         flexDirection: "row",
-        backgroundColor: colors.white,
-        padding: 10,
-        borderRadius: 6,
-        alignItems: "center",
-        justifyContent: 'space-between',
-        gap: 2,
+        marginTop: 6,
+        gap: 10,
     },
     buttonReview: {
+        flex: 1,
         flexDirection: "row",
         backgroundColor: colors.white,
-        padding: 10,
-        borderRadius: 6,
+        paddingVertical: 10,
+        borderRadius: 8,
         alignItems: "center",
         justifyContent: "center",
         gap: 6,
@@ -383,21 +408,22 @@ const styles = StyleSheet.create({
         fontWeight: "600",
     },
     firstLine: {
-        fontSize: 14,
+        fontSize: 15,
         fontWeight: "600",
-        marginBottom: 4,
-        color: colors.mutedBlack,
+        marginBottom: 6,
+        color: colors.black,
     },
     secondLine: {
         fontSize: 14,
-        fontWeight: "500",
-        marginBottom: 4,
+        fontWeight: "600",
+        marginBottom: 6,
         color: colors.primaryDark,
     },
     thirdLine: {
         fontSize: 12,
         color: colors.mutedBlack,
-        marginBottom: 8,
+        marginBottom: 10,
+        opacity: 0.8
     },
 
 
